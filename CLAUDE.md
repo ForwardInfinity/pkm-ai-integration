@@ -17,12 +17,14 @@ npm run lint     # Run ESLint
 
 ## Tech Stack
 
-- **Framework**: Next.js 15 (App Router, React 19, TypeScript)
+- **Framework**: Next.js 16 (App Router, React 19, TypeScript)
 - **Database/Auth**: Supabase (PostgreSQL + Supabase Auth)
 - **Styling**: Tailwind CSS + shadcn/ui (new-york style, neutral base)
 - **State**: Zustand (planned), TanStack Query (planned)
 - **AI**: Vercel AI SDK + OpenRouter (planned)
 - **Background Jobs**: Inngest (planned)
+- **Editor**: Tiptap
+- **Graph**: React Flow
 - **Testing**: Vitest, React Testing Library, Playwright (planned)
 
 ## Architecture
@@ -30,19 +32,103 @@ npm run lint     # Run ESLint
 ### Directory Structure
 
 ```
-app/                    # Next.js App Router pages
-  auth/                 # Auth routes (login, sign-up, forgot-password, etc.)
-  protected/            # Authenticated user area
-components/
-  ui/                   # shadcn/ui components
-  tutorial/             # Tutorial components (from starter kit)
-lib/
+app/                              # Next.js App Router (routes only)
+  (auth)/                         # Route group: public auth pages
+    login/                        # /login
+    sign-up/                      # /sign-up
+    forgot-password/              # /forgot-password
+    update-password/              # /update-password
+    sign-up-success/              # /sign-up-success
+    error/                        # /error
+    layout.tsx                    # Centered auth layout
+  (dashboard)/                    # Route group: authenticated app
+    layout.tsx                    # Three-panel shell layout
+    notes/                        # /notes - main dashboard
+      [id]/                       # /notes/:id - note editor
+    conflicts/                    # /conflicts
+    graph/                        # /graph
+    search/                       # /search
+    trash/                        # /trash
+  (admin)/                        # Route group: admin area
+    layout.tsx                    # Admin layout with role check
+    admin/                        # /admin
+  api/                            # API routes
+    auth/confirm/                 # Email confirmation callback
+
+components/                       # Shared/reusable components
+  ui/                             # shadcn/ui design system (do not modify)
+  layout/                         # Layout components (sidebar, inspector, header)
+  forms/
+    auth/                         # Auth form components
+    note/                         # Note form components
+  shared/                         # Generic utilities (theme-switcher, logos, etc.)
+  tutorial/                       # Tutorial components (from starter kit)
+
+features/                         # Feature modules (domain-specific)
+  notes/                          # Note management
+    components/                   # Feature-specific UI
+    hooks/                        # TanStack Query hooks
+    actions/                      # Server actions
+    types.ts                      # Feature types
+    index.ts                      # Public exports
+  conflicts/                      # Conflict detection & resolution
+  search/                         # Semantic search
+  graph/                          # Problem graph visualization
+  ai/                             # AI features (reconstruct, critique, clean)
+  inspector/                      # Right panel features
+  trash/                          # Trash management
+  admin/                          # Admin dashboard
+
+lib/                              # Core utilities and infrastructure
   supabase/
-    client.ts           # Browser Supabase client
-    server.ts           # Server Supabase client (async cookies)
-    middleware.ts       # Session refresh logic
-  utils.ts              # cn() helper, env check
-middleware.ts           # Auth protection (redirects unauthenticated to /auth/login)
+    client.ts                     # Browser Supabase client
+    server.ts                     # Server Supabase client (async cookies)
+    middleware.ts                 # Session refresh logic
+  ai/                             # OpenRouter client setup
+  inngest/
+    client.ts                     # Inngest client
+    functions/                    # Background job definitions
+  db/
+    queries/                      # Complex database queries
+  validation/                     # Zod schemas
+  utils.ts                        # cn() helper, env check
+
+stores/                           # Zustand stores (global state)
+hooks/                            # Shared custom hooks
+types/                            # Global type definitions
+  database.types.ts               # Supabase generated types
+config/                           # App configuration
+  site.ts                         # Site metadata
+  navigation.ts                   # Sidebar navigation config
+
+supabase/                         # Supabase local config
+  migrations/                     # Database migrations
+
+tests/                            # Test files
+  unit/                           # Vitest unit tests
+  integration/                    # Integration tests
+  e2e/                            # Playwright E2E tests
+
+middleware.ts                     # Auth protection
+```
+
+### Route Groups
+
+Route groups (parentheses folders) organize routes without affecting URLs:
+- `(auth)` - Public auth pages at `/login`, `/sign-up`, etc.
+- `(dashboard)` - Authenticated pages at `/notes`, `/conflicts`, etc.
+- `(admin)` - Admin pages at `/admin`
+
+### Feature Module Pattern
+
+Each feature in `features/` follows this structure:
+```
+features/[domain]/
+  components/     # Domain-specific UI components
+  hooks/          # TanStack Query hooks for data fetching
+  actions/        # Server actions for mutations
+  types.ts        # TypeScript interfaces
+  index.ts        # Public exports (barrel file)
 ```
 
 ### Supabase Client Usage
@@ -53,7 +139,7 @@ middleware.ts           # Auth protection (redirects unauthenticated to /auth/lo
 
 ### Path Aliases
 
-- `@/*` maps to project root (e.g., `@/components`, `@/lib/supabase/server`)
+- `@/*` maps to project root (e.g., `@/components`, `@/lib/supabase/server`, `@/features/notes`)
 
 ### Environment Variables
 
@@ -79,7 +165,29 @@ When implementing features, understand these core concepts from the PRD:
 - Use shadcn/ui components from `@/components/ui`
 - Use `cn()` from `@/lib/utils` for conditional classes
 - Server-side Supabase clients must be created fresh per request (never global)
-- Protected routes are under `/protected` - middleware handles auth redirect
+- Feature-specific components go in `features/[domain]/components/`
+- Shared/reusable components go in `components/`
+- Protected routes use middleware - unauthenticated users redirect to `/login`
+- Auth pages redirect authenticated users to `/notes`
+
+## URL Structure
+
+| Route | Description |
+|-------|-------------|
+| `/` | Landing page (public) |
+| `/login` | Login page |
+| `/sign-up` | Sign up page |
+| `/notes` | Notes list (dashboard home) |
+| `/notes/:id` | Note editor |
+| `/conflicts` | Conflict resolution |
+| `/graph` | Problem graph |
+| `/search` | Search results |
+| `/trash` | Deleted notes |
+| `/admin` | Admin dashboard |
 
 ## Rules
+
 - Automatically use context7 for code generation and library documentation.
+- Feature code goes in `features/`, not `components/`
+- Keep `components/ui/` untouched (shadcn/ui managed)
+- Co-locate feature-specific code (components, hooks, types) within feature directories

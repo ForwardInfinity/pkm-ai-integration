@@ -80,3 +80,6 @@ When implementing features, understand these core concepts from the PRD:
 - Use `cn()` from `@/lib/utils` for conditional classes
 - Server-side Supabase clients must be created fresh per request (never global)
 - Protected routes are under `/protected` - middleware handles auth redirect
+
+## Rules
+- Automatically use context7 for code generation and library documentation.

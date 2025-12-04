@@ -1,5 +1,5 @@
-import { NextLogo } from "./next-logo";
-import { SupabaseLogo } from "./supabase-logo";
+import { NextLogo } from "./shared/next-logo";
+import { SupabaseLogo } from "./shared/supabase-logo";
 
 export function Hero() {
   return (

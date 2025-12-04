@@ -148,6 +148,53 @@ NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ```
 
+## Database Schema
+
+### Tables
+
+| Table | Description | RLS |
+|-------|-------------|-----|
+| `profiles` | User profiles with role (user/admin) | ✅ |
+| `notes` | Notes with embeddings, tags, word_count | ✅ |
+| `conflicts` | AI-detected conflicts between notes | ✅ |
+| `note_links` | Backlink tracking for [[wikilinks]] | ✅ |
+
+### Key Columns
+
+**notes**: `id`, `user_id`, `title`, `problem`, `content`, `embedding` (vector 1536), `tags` (text[]), `word_count`, `is_pinned`, `deleted_at`, timestamps
+
+**conflicts**: `id`, `user_id`, `note_a_id`, `note_b_id`, `explanation`, `status` (unresolved/resolved/dismissed), timestamps
+
+### Database Functions (RPC)
+
+```typescript
+// Semantic search
+supabase.rpc('search_notes', { query_embedding, match_threshold, match_count })
+
+// Related notes
+supabase.rpc('get_related_notes', { target_note_id, match_count })
+
+// Backlinks
+supabase.rpc('get_backlinks', { target_note_id })
+
+// Conflict detection helper
+supabase.rpc('find_potential_conflicts', { target_note_id, similarity_threshold, match_count })
+
+// Sidebar badge
+supabase.rpc('get_unresolved_conflict_count')
+
+// Tag operations
+supabase.rpc('get_notes_by_tags', { filter_tags, include_deleted })
+supabase.rpc('get_all_tags')
+```
+
+### Triggers
+
+- `updated_at` auto-update on profiles and notes
+- Auto-create profile on user signup
+- Auto-resolve conflicts when note is soft-deleted
+- Auto-reactivate conflicts when note is restored
+
 ## Key Product Concepts
 
 When implementing features, understand these core concepts from the PRD:

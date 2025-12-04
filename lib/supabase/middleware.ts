@@ -51,10 +51,21 @@ export async function updateSession(request: NextRequest) {
   const publicRoutes = ["/", "/login", "/sign-up", "/sign-up-success", "/forgot-password", "/update-password", "/error"];
   const isPublicRoute = publicRoutes.some(route => request.nextUrl.pathname === route);
 
+  // Auth routes that should redirect to /notes if user is already authenticated
+  const authRoutes = ["/login", "/sign-up", "/forgot-password"];
+  const isAuthRoute = authRoutes.some(route => request.nextUrl.pathname === route);
+
   if (!user && !isPublicRoute) {
     // no user, redirect to login page
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  if (user && isAuthRoute) {
+    // user is authenticated, redirect away from auth pages to /notes
+    const url = request.nextUrl.clone();
+    url.pathname = "/notes";
     return NextResponse.redirect(url);
   }
 

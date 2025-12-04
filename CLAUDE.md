@@ -17,7 +17,7 @@ npm run lint     # Run ESLint
 
 ## Tech Stack
 
-- **Framework**: Next.js 16 (App Router, React 19, TypeScript)
+- **Framework**: Next.js 15 (App Router, React 19, TypeScript)
 - **Database/Auth**: Supabase (PostgreSQL + Supabase Auth)
 - **Styling**: Tailwind CSS + shadcn/ui (new-york style, neutral base)
 - **State**: Zustand (planned), TanStack Query (planned)

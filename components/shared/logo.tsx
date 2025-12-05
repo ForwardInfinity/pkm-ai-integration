@@ -5,9 +5,10 @@ interface LogoProps {
   className?: string;
   showTagline?: boolean;
   linkToHome?: boolean;
+  iconOnly?: boolean;
 }
 
-export function Logo({ className, showTagline = false, linkToHome = true }: LogoProps) {
+export function Logo({ className, showTagline = false, linkToHome = true, iconOnly = false }: LogoProps) {
   const content = (
     <div className={cn("flex flex-col items-center", className)}>
       <div className="flex items-center gap-2">
@@ -52,11 +53,13 @@ export function Logo({ className, showTagline = false, linkToHome = true }: Logo
             fill="currentColor"
           />
         </svg>
-        <span className="text-lg font-medium">
-          Refinery
-        </span>
+        {!iconOnly && (
+          <span className="text-lg font-medium">
+            Refinery
+          </span>
+        )}
       </div>
-      {showTagline && (
+      {showTagline && !iconOnly && (
         <p className="mt-1.5 text-[13px] text-muted-foreground">
           A selection environment for ideas
         </p>

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import { ThreePanelLayout } from "@/components/layout/three-panel-layout"
+import { COOKIE_CONFIG, LAYOUT_CONSTANTS } from "@/types/layout.types"
 
 export default async function DashboardLayout({
   children,
@@ -14,21 +15,43 @@ export default async function DashboardLayout({
     data: { user },
   } = await supabase.auth.getUser()
 
-  const layout = cookieStore.get("react-resizable-panels:layout")
-  const collapsed = cookieStore.get("react-resizable-panels:collapsed")
+  // Read persisted layout state from Zustand cookie
+  const layoutCookie = cookieStore.get(COOKIE_CONFIG.LAYOUT_KEY)
 
-  const defaultLayout = layout ? JSON.parse(layout.value) : undefined
-  const defaultCollapsed = collapsed ? JSON.parse(collapsed.value) : undefined
+  let defaultLayout: number[] | undefined
+  let defaultCollapsed: boolean | undefined
+  let defaultInspectorCollapsed: boolean | undefined
+
+  if (layoutCookie?.value) {
+    try {
+      const parsed = JSON.parse(layoutCookie.value)
+      // Zustand persist wraps state in { state: {...}, version: number }
+      const state = parsed.state || parsed
+
+      if (state.sizes) {
+        defaultLayout = [
+          state.sizes.sidebar ?? LAYOUT_CONSTANTS.DEFAULT_SIDEBAR_SIZE,
+          state.sizes.main ?? LAYOUT_CONSTANTS.DEFAULT_MAIN_SIZE,
+          state.sizes.inspector ?? LAYOUT_CONSTANTS.DEFAULT_INSPECTOR_SIZE,
+        ]
+      }
+      defaultCollapsed = state.isSidebarCollapsed
+      defaultInspectorCollapsed = state.isInspectorCollapsed
+    } catch {
+      // Invalid cookie, use defaults
+    }
+  }
 
   return (
     <div className="h-screen overflow-hidden bg-background">
-       <ThreePanelLayout 
-          defaultLayout={defaultLayout}
-          defaultCollapsed={defaultCollapsed}
-          email={user?.email}
-       >
-          {children}
-       </ThreePanelLayout>
+      <ThreePanelLayout
+        defaultLayout={defaultLayout}
+        defaultCollapsed={defaultCollapsed}
+        defaultInspectorCollapsed={defaultInspectorCollapsed}
+        email={user?.email}
+      >
+        {children}
+      </ThreePanelLayout>
     </div>
   )
 }

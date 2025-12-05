@@ -1,18 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm install:*)",
-      "Bash(npx playwright install)",
-      "Bash(npm run build:*)",
-      "Bash(find:*)",
-      "Bash(cat:*)",
-      "mcp__supabase__search_docs",
-      "mcp__supabase__apply_migration",
-      "mcp__supabase__list_tables",
-      "mcp__supabase__generate_typescript_types",
-      "mcp__supabase__get_advisors",
-      "mcp__supabase__list_migrations"
-    ]
+      "Bash(grep:*)",
+      "Bash(findstr:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "Bash(npm run lint)",
+      "Bash(npx eslint:*)"
+    ],
+    "deny": [],
+    "ask": []
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [

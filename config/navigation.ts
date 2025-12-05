@@ -1,6 +1,14 @@
-import { FileText, AlertTriangle, Network, Search, Trash2, Settings } from "lucide-react";
+import {
+  FileText,
+  AlertTriangle,
+  Network,
+  Search,
+  Trash2,
+  Settings,
+} from "lucide-react"
+import type { NavigationItem } from "@/types/layout.types"
 
-export const sidebarNavigation = [
+export const sidebarNavigation: NavigationItem[] = [
   {
     title: "Notes",
     href: "/notes",
@@ -27,12 +35,12 @@ export const sidebarNavigation = [
     href: "/trash",
     icon: Trash2,
   },
-] as const;
+]
 
-export const adminNavigation = [
+export const adminNavigation: NavigationItem[] = [
   {
     title: "Admin Dashboard",
     href: "/admin",
     icon: Settings,
   },
-] as const;
+]

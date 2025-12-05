@@ -75,10 +75,10 @@ export function MarkdownEditor({
     editable,
     immediatelyRender: false, // Required for SSR compatibility
     onUpdate: ({ editor }) => {
-      // Get markdown from storage (tiptap-markdown extension)
+      // Get markdown from tiptap-markdown extension
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const storage = editor.storage as any
-      const markdown = storage?.markdown?.getMarkdown?.() ?? ''
+      const markdownStorage = (editor.storage as any).markdown
+      const markdown = markdownStorage?.getMarkdown?.() ?? ''
       onChange?.(markdown)
       debouncedSave(markdown)
     },
@@ -86,9 +86,12 @@ export function MarkdownEditor({
 
   // Set initial content after editor is ready
   useEffect(() => {
-    if (editor && !hasInitializedRef.current && initialContentRef.current) {
-      // Use setContent with markdown content type
-      editor.commands.setContent(initialContentRef.current)
+    if (editor && !hasInitializedRef.current) {
+      // Set content if there's initial content to set
+      if (initialContentRef.current) {
+        editor.commands.setContent(initialContentRef.current)
+      }
+      // Mark as initialized even for empty content (new notes)
       hasInitializedRef.current = true
     }
   }, [editor])
@@ -97,8 +100,8 @@ export function MarkdownEditor({
   useEffect(() => {
     if (editor && hasInitializedRef.current && content !== initialContentRef.current) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const storage = editor.storage as any
-      const currentMarkdown = storage?.markdown?.getMarkdown?.() ?? ''
+      const markdownStorage = (editor.storage as any).markdown
+      const currentMarkdown = markdownStorage?.getMarkdown?.() ?? ''
       // Only update if content has actually changed from external source
       if (content !== currentMarkdown) {
         editor.commands.setContent(content)

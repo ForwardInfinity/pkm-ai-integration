@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import { MarkdownEditor } from '@/components/editor'
 import { useNote, useUpdateNote, useCreateNote } from '../hooks'
 import { useDebouncedCallback } from '@/hooks/use-debounce'
-import { Loader2, Check, AlertCircle } from 'lucide-react'
+import { useNoteEditorStore } from '@/stores'
+import { Button } from '@/components/ui/button'
+import { Loader2, Check, AlertCircle, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface NoteEditorProps {
@@ -23,6 +25,9 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
   const updateNote = useUpdateNote()
   const createNote = useCreateNote()
 
+  // Store for sharing note context with inspector
+  const { setCurrentNote, setCurrentNoteId, reset } = useNoteEditorStore()
+
   // Local state for form fields
   const [title, setTitle] = useState('')
   const [problem, setProblem] = useState('')
@@ -31,14 +36,24 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
   const [hasCreated, setHasCreated] = useState(false)
   const [createdNoteId, setCreatedNoteId] = useState<string | null>(null)
 
-  // Initialize form from loaded note
+  // Initialize form from loaded note and update store
   useEffect(() => {
     if (note && !isNewNote) {
       setTitle(note.title ?? '')
       setProblem(note.problem ?? '')
       setContent(note.content ?? '')
+      setCurrentNote(note)
+    } else if (isNewNote) {
+      setCurrentNoteId('new')
     }
-  }, [note, isNewNote])
+  }, [note, isNewNote, setCurrentNote, setCurrentNoteId])
+
+  // Cleanup store on unmount
+  useEffect(() => {
+    return () => {
+      reset()
+    }
+  }, [reset])
 
   // Calculate word count from content
   const calculateWordCount = useCallback((text: string) => {
@@ -77,8 +92,8 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
     }
   }
 
-  // Handle problem change
-  const handleProblemChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle problem change (now using textarea)
+  const handleProblemChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newProblem = e.target.value
     setProblem(newProblem)
 
@@ -86,6 +101,12 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
     if (!isNewNote || hasCreated) {
       debouncedSaveFields({ problem: newProblem })
     }
+  }
+
+  // Handle reconstruct problem button click (placeholder for AI integration)
+  const handleReconstructProblem = () => {
+    // TODO: Wire up AI to reconstruct problem from content
+    console.log('Reconstruct problem clicked - AI integration coming soon')
   }
 
   // Handle content save from editor
@@ -105,6 +126,8 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
         })
         setHasCreated(true)
         setCreatedNoteId(newNote.id)
+        // Update store with the newly created note
+        setCurrentNote(newNote)
         // Update URL without full navigation
         router.replace(`/notes/${newNote.id}`, { scroll: false })
         setSaveStatus('saved')
@@ -173,17 +196,33 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
             value={title}
             onChange={handleTitleChange}
             placeholder="Untitled"
-            className="w-full mb-2 text-4xl font-bold bg-transparent border-none outline-none placeholder:text-muted-foreground/50 focus:ring-0"
+            className="w-full mb-4 text-4xl font-bold bg-transparent border-none outline-none placeholder:text-muted-foreground/50 focus:ring-0"
           />
 
-          {/* Problem field */}
-          <input
-            type="text"
-            value={problem}
-            onChange={handleProblemChange}
-            placeholder="What problem does this address?"
-            className="w-full mb-8 text-lg text-muted-foreground bg-transparent border-none outline-none placeholder:text-muted-foreground/30 focus:ring-0"
-          />
+          {/* Problem field - visually prominent */}
+          <div className="relative mb-8 rounded-lg border border-primary/20 bg-primary/5 p-4">
+            <textarea
+              value={problem}
+              onChange={handleProblemChange}
+              placeholder="What problem does this solve?"
+              rows={2}
+              className={cn(
+                "w-full resize-none bg-transparent text-base text-foreground/80",
+                "border-none outline-none placeholder:text-muted-foreground/50",
+                "focus:ring-0 pr-32"
+              )}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleReconstructProblem}
+              className="absolute right-2 bottom-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+              Reconstruct Problem
+            </Button>
+          </div>
 
           {/* Content editor */}
           <MarkdownEditor

@@ -21,11 +21,11 @@ npm run lint     # Run ESLint
 - **Database/Auth**: Supabase (PostgreSQL + Supabase Auth)
 - **Styling**: Tailwind CSS + shadcn/ui (new-york style, neutral base)
 - **State**: Zustand, TanStack Query
-- **AI**: Vercel AI SDK + OpenRouter (planned)
-- **Background Jobs**: Inngest (planned)
+- **AI**: Vercel AI SDK + OpenRouter
+- **Background Jobs**: Inngest
 - **Editor**: Tiptap
 - **Graph**: React Flow
-- **Testing**: Vitest, React Testing Library, Playwright (planned)
+- **Testing**: Vitest, React Testing Library, Playwright
 
 ## Architecture
 

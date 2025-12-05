@@ -62,6 +62,7 @@ export function AppSidebar({ isCollapsed, email, onToggle }: AppSidebarProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
+                asChild
                 variant={isCollapsed ? "ghost" : "default"}
                 size={isCollapsed ? "icon" : "default"}
                 className={cn(
@@ -70,13 +71,14 @@ export function AppSidebar({ isCollapsed, email, onToggle }: AppSidebarProps) {
                     ? "h-10 w-10 justify-center hover:bg-muted/50"
                     : "justify-start"
                 )}
-                aria-label="Create new note"
               >
-                <Plus
-                  className={cn("h-4 w-4", !isCollapsed && "mr-2")}
-                  aria-hidden="true"
-                />
-                {!isCollapsed && "New Note"}
+                <Link href="/notes/new" aria-label="Create new note">
+                  <Plus
+                    className={cn("h-4 w-4", !isCollapsed && "mr-2")}
+                    aria-hidden="true"
+                  />
+                  {!isCollapsed && "New Note"}
+                </Link>
               </Button>
             </TooltipTrigger>
             {isCollapsed && (

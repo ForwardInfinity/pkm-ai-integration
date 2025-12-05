@@ -33,9 +33,17 @@ async function updateNote({ id, ...data }: UpdateNoteParams): Promise<Note> {
 async function createNote(data: CreateNoteInput): Promise<Note> {
   const supabase = createClient()
 
+  // Get the current user's ID
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+  if (userError || !user) {
+    throw new Error('You must be logged in to create a note')
+  }
+
   const { data: created, error } = await supabase
     .from('notes')
     .insert({
+      user_id: user.id,
       title: data.title,
       problem: data.problem ?? null,
       content: data.content ?? '',

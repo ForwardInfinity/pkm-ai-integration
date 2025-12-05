@@ -5,18 +5,22 @@ import { Separator } from "@/components/ui/separator"
 import { PanelRightClose } from "lucide-react"
 import { TooltipIconButton } from "@/components/shared/tooltip-icon-button"
 import { LAYOUT_CONSTANTS } from "@/types/layout.types"
+import { useCurrentNoteId } from "@/stores"
+import { NoteInspector } from "@/features/inspector/components"
 
 interface InspectorPanelProps {
   isCollapsed: boolean
-  children?: React.ReactNode
   onToggle?: () => void
 }
 
 export function InspectorPanel({
   isCollapsed,
-  children,
   onToggle,
 }: InspectorPanelProps) {
+  // Check if we're editing a note
+  const currentNoteId = useCurrentNoteId()
+  const isEditingNote = currentNoteId !== null
+
   if (isCollapsed) {
     return null
   }
@@ -42,9 +46,9 @@ export function InspectorPanel({
 
       {/* Content */}
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-6">
-          {children ? (
-            children
+        <div className="p-4">
+          {isEditingNote ? (
+            <NoteInspector />
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">
               Select a note to view details

@@ -1,4 +1,12 @@
 // Inspector feature public exports
-// Components, hooks, and types will be exported here as they are implemented
 
-export {};
+// Components
+export {
+  InspectorSection,
+  AIToolsSection,
+  ConflictsSection,
+  RelatedNotesSection,
+  TagsSection,
+  BacklinksSection,
+  NoteInspector,
+} from './components'

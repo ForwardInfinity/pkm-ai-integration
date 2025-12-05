@@ -35,6 +35,11 @@ export function MarkdownEditor({
   }, autoSaveDelay)
 
   const editor = useEditor({
+    editorProps: {
+      attributes: {
+        spellcheck: 'false',
+      },
+    },
     extensions: [
       StarterKit.configure({
         // Disable default code block (we can add syntax highlighting later)

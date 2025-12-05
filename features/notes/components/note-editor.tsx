@@ -182,45 +182,59 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
 
   return (
     <div className="flex flex-1 flex-col">
-      {/* Header with save status */}
-      <div className="flex items-center justify-end px-8 py-2 border-b">
-        <SaveStatusIndicator status={saveStatus} />
-      </div>
-
       {/* Editor content */}
       <div className="flex-1 overflow-auto">
-        <div className="max-w-3xl mx-auto px-8 py-8">
-          {/* Title input */}
+        <div className="max-w-3xl mx-auto px-8 py-12">
+          {/* Save status - floating subtle indicator */}
+          <div className="flex justify-end mb-4 min-h-[20px]">
+            <SaveStatusIndicator status={saveStatus} />
+          </div>
+
+          {/* Title input - large and prominent */}
           <input
             type="text"
             value={title}
             onChange={handleTitleChange}
             placeholder="Untitled"
-            className="w-full mb-4 text-4xl font-bold bg-transparent border-none outline-none placeholder:text-muted-foreground/50 focus:ring-0"
+            spellCheck={false}
+            className="w-full mb-4 text-5xl font-bold leading-[1.1] tracking-tight bg-transparent border-none outline-none placeholder:text-muted-foreground/30 focus:ring-0"
           />
 
-          {/* Problem field - visually prominent */}
-          <div className="relative mb-8 rounded-lg border border-primary/20 bg-primary/5 p-4">
+          {/* Problem field - subtle, inline feel */}
+          <div className="relative mb-8 pb-2 border-b border-border/40 group hover:border-border/60 focus-within:border-border/60 transition-colors">
             <textarea
               value={problem}
               onChange={handleProblemChange}
               placeholder="What problem does this solve?"
-              rows={2}
+              rows={1}
+              spellCheck={false}
+              style={{ resize: 'none' }}
               className={cn(
-                "w-full resize-none bg-transparent text-base text-foreground/80",
-                "border-none outline-none placeholder:text-muted-foreground/50",
-                "focus:ring-0 pr-32"
+                "w-full bg-transparent",
+                "text-base text-muted-foreground",
+                "border-none outline-none",
+                "placeholder:text-muted-foreground/40 placeholder:italic",
+                "focus:ring-0 focus:text-foreground/70",
+                "transition-colors duration-200",
+                "pr-28"
               )}
             />
+            {/* Reconstruct button - inside field, bottom right */}
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={handleReconstructProblem}
-              className="absolute right-2 bottom-2 text-xs text-muted-foreground hover:text-foreground"
+              className={cn(
+                "absolute right-0 bottom-2",
+                "h-6 px-2",
+                "text-xs text-muted-foreground/50 hover:text-foreground hover:bg-muted/50",
+                "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+                "transition-opacity duration-200"
+              )}
             >
-              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-              Reconstruct Problem
+              <Sparkles className="h-3 w-3 mr-1" />
+              Reconstruct
             </Button>
           </div>
 

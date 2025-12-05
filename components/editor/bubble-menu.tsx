@@ -17,7 +17,9 @@ interface EditorBubbleMenuProps {
 }
 
 export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
-  if (!editor) return null
+  // Must check editor.view exists and is editable to prevent "domFromPos" error
+  // This error occurs when BubbleMenu renders before the editor view is fully mounted
+  if (!editor?.view?.dom) return null
 
   return (
     <BubbleMenu

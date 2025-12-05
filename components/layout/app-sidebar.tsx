@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Plus } from "lucide-react"
+import { Plus, PanelLeftClose } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -17,72 +17,35 @@ import { UserNav } from "@/components/layout/user-nav"
 interface AppSidebarProps {
   isCollapsed: boolean
   email?: string
+  onToggle?: () => void
 }
 
-export function AppSidebar({ isCollapsed, email }: AppSidebarProps) {
+export function AppSidebar({ isCollapsed, email, onToggle }: AppSidebarProps) {
   const pathname = usePathname()
 
+  if (isCollapsed) {
+    return null
+  }
+
   return (
-    <div
-      data-collapsed={isCollapsed}
-      className="group flex flex-col gap-4 py-4 data-[collapsed=true]:py-4 h-full bg-muted/10"
+    <div className="group relative flex flex-col gap-4 py-4 h-full bg-muted/10"
     >
-      <div className={cn("flex h-[52px] items-center px-4", isCollapsed ? "justify-center px-2" : "justify-start")}>
-        <Logo className={cn("transition-all", isCollapsed && "scale-0 w-0 h-0 overflow-hidden")} />
-        {isCollapsed && <Logo iconOnly className="h-6 w-6" />}
+      <div className="flex h-[52px] items-center justify-start px-4">
+        <Logo />
       </div>
       <Separator />
-      <div className={cn("px-4", isCollapsed ? "px-2" : "px-4")}>
-         <TooltipProvider delayDuration={0}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant={isCollapsed ? "ghost" : "default"}
-                size={isCollapsed ? "icon" : "default"}
-                className={cn("w-full justify-start", isCollapsed && "h-9 w-9 justify-center")}
-              >
-                <Plus className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
-                {!isCollapsed && "New Note"}
-                <span className="sr-only">New Note</span>
-              </Button>
-            </TooltipTrigger>
-            {isCollapsed && <TooltipContent side="right">New Note</TooltipContent>}
-          </Tooltip>
-        </TooltipProvider>
+      <div className="px-4">
+        <Button variant="default" className="w-full justify-start">
+          <Plus className="h-4 w-4 mr-2" />
+          New Note
+        </Button>
       </div>
       <ScrollArea className="flex-1 px-2">
-        <div className="grid gap-1 px-2 group-[[data-collapsed=true]]:justify-center group-[[data-collapsed=true]]:px-0">
+        <div className="grid gap-1 px-2">
           {sidebarNavigation.map((link, index) => {
-             const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
-             
-             return isCollapsed ? (
-              <TooltipProvider key={index} delayDuration={0}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Link
-                      href={link.href}
-                      className={cn(
-                        buttonVariants({ variant: isActive ? "default" : "ghost", size: "icon" }),
-                        "h-9 w-9",
-                        isActive && "dark:bg-muted dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-white"
-                      )}
-                    >
-                      <link.icon className="h-4 w-4" />
-                      <span className="sr-only">{link.title}</span>
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="flex items-center gap-4">
-                    {link.title}
-                    {link.badge && (
-                      <span className="ml-auto text-muted-foreground">
-                        {/* Conflict count placeholder */}
-                        0
-                      </span>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : (
+            const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`)
+
+            return (
               <Link
                 key={index}
                 href={link.href}
@@ -101,8 +64,7 @@ export function AppSidebar({ isCollapsed, email }: AppSidebarProps) {
                       isActive ? "text-primary-foreground" : "text-muted-foreground"
                     )}
                   >
-                    {/* Conflict count placeholder */}
-                     0
+                    0
                   </span>
                 )}
               </Link>
@@ -110,9 +72,30 @@ export function AppSidebar({ isCollapsed, email }: AppSidebarProps) {
           })}
         </div>
       </ScrollArea>
-      <div className={cn("mt-auto px-2", isCollapsed ? "px-1" : "px-2")}>
-        <UserNav email={email} isCollapsed={isCollapsed} />
+      <div className="mt-auto px-2">
+        <UserNav email={email} isCollapsed={false} />
       </div>
+
+      {/* Collapse button */}
+      {onToggle && (
+        <div className="absolute bottom-2 right-2">
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={onToggle}
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Collapse sidebar</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      )}
     </div>
   )
 }

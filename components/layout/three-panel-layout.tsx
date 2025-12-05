@@ -11,14 +11,13 @@ import { cn } from "@/lib/utils"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { InspectorPanel } from "@/components/layout/inspector-panel"
 import { Button } from "@/components/ui/button"
-import { PanelLeftClose, PanelLeft, PanelRightClose, PanelRight } from "lucide-react"
+import { PanelRight, PanelLeft } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface ThreePanelLayoutProps {
   children: React.ReactNode
   defaultLayout?: number[] | undefined
   defaultCollapsed?: boolean
-  navCollapsedSize?: number
   email?: string
 }
 
@@ -26,7 +25,6 @@ export function ThreePanelLayout({
   children,
   defaultLayout = [17, 63, 20],
   defaultCollapsed = false,
-  navCollapsedSize = 4,
   email,
 }: ThreePanelLayoutProps) {
   const sidebarRef = React.useRef<ImperativePanelHandle>(null)
@@ -58,58 +56,44 @@ export function ThreePanelLayout({
 
   return (
     <div className="relative h-full">
-      {/* Floating Toggle Buttons */}
       <TooltipProvider delayDuration={0}>
-        {/* Left Sidebar Toggle */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "absolute top-3 z-50 h-7 w-7 rounded-md bg-background/80 backdrop-blur-sm border shadow-sm hover:bg-accent transition-all duration-300",
-                isSidebarCollapsed ? "left-[58px]" : "left-[calc(17%-8px)]"
-              )}
-              style={{
-                left: isSidebarCollapsed ? "58px" : undefined,
-              }}
-              onClick={toggleSidebar}
-            >
-              {isSidebarCollapsed ? (
-                <PanelLeft className="h-4 w-4" />
-              ) : (
-                <PanelLeftClose className="h-4 w-4" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            {isSidebarCollapsed ? "Mở rộng sidebar" : "Thu gọn sidebar"}
-          </TooltipContent>
-        </Tooltip>
+        {/* Sidebar expand button when collapsed */}
+        {isSidebarCollapsed && (
+          <div className="absolute bottom-2 left-2 z-50">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={toggleSidebar}
+                >
+                  <PanelLeft className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Expand sidebar</TooltipContent>
+            </Tooltip>
+          </div>
+        )}
 
-        {/* Right Inspector Toggle */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "absolute top-3 z-50 h-7 w-7 rounded-md bg-background/80 backdrop-blur-sm border shadow-sm hover:bg-accent transition-all duration-300",
-                isInspectorCollapsed ? "right-2" : "right-[calc(20%-8px)]"
-              )}
-              onClick={toggleInspector}
-            >
-              {isInspectorCollapsed ? (
-                <PanelRight className="h-4 w-4" />
-              ) : (
-                <PanelRightClose className="h-4 w-4" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="left">
-            {isInspectorCollapsed ? "Mở rộng inspector" : "Thu gọn inspector"}
-          </TooltipContent>
-        </Tooltip>
+        {/* Inspector expand button when collapsed */}
+        {isInspectorCollapsed && (
+          <div className="absolute bottom-2 right-2 z-50">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={toggleInspector}
+                >
+                  <PanelRight className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">Expand inspector</TooltipContent>
+            </Tooltip>
+          </div>
+        )}
       </TooltipProvider>
 
       <ResizablePanelGroup
@@ -124,7 +108,7 @@ export function ThreePanelLayout({
         <ResizablePanel
           ref={sidebarRef}
           defaultSize={defaultLayout[0]}
-          collapsedSize={navCollapsedSize}
+          collapsedSize={0}
           collapsible={true}
           minSize={12}
           maxSize={20}
@@ -142,10 +126,10 @@ export function ThreePanelLayout({
           }}
           className={cn(
             "transition-all duration-300 ease-in-out",
-            isSidebarCollapsed && "min-w-[50px]"
+            isSidebarCollapsed && "min-w-0"
           )}
         >
-          <AppSidebar isCollapsed={isSidebarCollapsed} email={email} />
+          <AppSidebar isCollapsed={isSidebarCollapsed} email={email} onToggle={toggleSidebar} />
         </ResizablePanel>
         
         <ResizableHandle className="w-px bg-border hover:bg-primary/20 transition-colors" />
@@ -170,7 +154,7 @@ export function ThreePanelLayout({
             isInspectorCollapsed && "min-w-0"
           )}
         >
-          <InspectorPanel isCollapsed={isInspectorCollapsed} />
+          <InspectorPanel isCollapsed={isInspectorCollapsed} onToggle={toggleInspector} />
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>

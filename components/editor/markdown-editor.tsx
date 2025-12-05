@@ -1,0 +1,126 @@
+'use client'
+
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import { Markdown } from 'tiptap-markdown'
+import Placeholder from '@tiptap/extension-placeholder'
+import Link from '@tiptap/extension-link'
+import Underline from '@tiptap/extension-underline'
+import Highlight from '@tiptap/extension-highlight'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
+import Typography from '@tiptap/extension-typography'
+import { useEffect, useRef } from 'react'
+import { useDebouncedCallback } from '@/hooks/use-debounce'
+import { EditorBubbleMenu } from './bubble-menu'
+import type { MarkdownEditorProps } from './types'
+import { cn } from '@/lib/utils'
+import './editor-styles.css'
+
+export function MarkdownEditor({
+  content = '',
+  placeholder = 'Start writing...',
+  onChange,
+  onSave,
+  autoSaveDelay = 2000,
+  className,
+  editable = true,
+}: MarkdownEditorProps) {
+  const initialContentRef = useRef(content)
+  const hasInitializedRef = useRef(false)
+
+  // Debounced save callback
+  const debouncedSave = useDebouncedCallback((markdown: string) => {
+    onSave?.(markdown)
+  }, autoSaveDelay)
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        // Disable default code block (we can add syntax highlighting later)
+        codeBlock: {
+          HTMLAttributes: {
+            class: 'not-prose',
+          },
+        },
+      }),
+      Markdown.configure({
+        html: false, // Disable HTML for security
+        tightLists: true, // Cleaner list output
+        bulletListMarker: '-', // Use dashes for bullets
+        transformPastedText: true, // Parse pasted markdown
+        transformCopiedText: true, // Copy as markdown
+      }),
+      Placeholder.configure({
+        placeholder,
+        emptyEditorClass: 'is-editor-empty',
+      }),
+      Link.configure({
+        openOnClick: false, // Don't open links while editing
+        HTMLAttributes: {
+          class: 'text-primary underline underline-offset-2',
+        },
+      }),
+      Underline,
+      Highlight.configure({
+        multicolor: false,
+      }),
+      TaskList,
+      TaskItem.configure({
+        nested: true,
+      }),
+      Typography,
+    ],
+    content: '', // Start empty, we'll set content after mount
+    editable,
+    immediatelyRender: false, // Required for SSR compatibility
+    onUpdate: ({ editor }) => {
+      // Get markdown from storage (tiptap-markdown extension)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const storage = editor.storage as any
+      const markdown = storage?.markdown?.getMarkdown?.() ?? ''
+      onChange?.(markdown)
+      debouncedSave(markdown)
+    },
+  })
+
+  // Set initial content after editor is ready
+  useEffect(() => {
+    if (editor && !hasInitializedRef.current && initialContentRef.current) {
+      // Use setContent with markdown content type
+      editor.commands.setContent(initialContentRef.current)
+      hasInitializedRef.current = true
+    }
+  }, [editor])
+
+  // Handle external content changes
+  useEffect(() => {
+    if (editor && hasInitializedRef.current && content !== initialContentRef.current) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const storage = editor.storage as any
+      const currentMarkdown = storage?.markdown?.getMarkdown?.() ?? ''
+      // Only update if content has actually changed from external source
+      if (content !== currentMarkdown) {
+        editor.commands.setContent(content)
+        initialContentRef.current = content
+      }
+    }
+  }, [editor, content])
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      editor?.destroy()
+    }
+  }, [editor])
+
+  return (
+    <div className={cn('tiptap-editor', className)}>
+      <EditorBubbleMenu editor={editor} />
+      <EditorContent editor={editor} />
+    </div>
+  )
+}
+
+// Export for external access to editor instance if needed
+export type { MarkdownEditorProps }

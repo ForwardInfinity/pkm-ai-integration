@@ -1,0 +1,115 @@
+/* Tiptap Editor Base Styles */
+.tiptap-editor {
+  @apply min-h-[200px] w-full;
+}
+
+/* ProseMirror content area - using Tailwind Typography */
+.tiptap-editor .ProseMirror {
+  @apply prose prose-neutral dark:prose-invert max-w-none;
+  @apply focus:outline-none;
+}
+
+/* Abundant whitespace for distraction-free writing */
+.tiptap-editor .ProseMirror > * + * {
+  @apply mt-4;
+}
+
+.tiptap-editor .ProseMirror p {
+  @apply leading-relaxed;
+}
+
+/* Headings */
+.tiptap-editor .ProseMirror h1 {
+  @apply mt-8 mb-4 text-3xl font-semibold;
+}
+
+.tiptap-editor .ProseMirror h2 {
+  @apply mt-6 mb-3 text-2xl font-semibold;
+}
+
+.tiptap-editor .ProseMirror h3 {
+  @apply mt-5 mb-2 text-xl font-semibold;
+}
+
+.tiptap-editor .ProseMirror h4 {
+  @apply mt-4 mb-2 text-lg font-semibold;
+}
+
+/* Placeholder styling */
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  @apply text-muted-foreground pointer-events-none float-left h-0;
+  content: attr(data-placeholder);
+}
+
+/* Code blocks */
+.tiptap-editor .ProseMirror pre {
+  @apply bg-muted rounded-lg p-4 my-4 overflow-x-auto;
+}
+
+.tiptap-editor .ProseMirror pre code {
+  @apply bg-transparent p-0 text-sm font-mono;
+}
+
+/* Inline code */
+.tiptap-editor .ProseMirror code {
+  @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+/* Lists */
+.tiptap-editor .ProseMirror ul {
+  @apply list-disc pl-6;
+}
+
+.tiptap-editor .ProseMirror ol {
+  @apply list-decimal pl-6;
+}
+
+.tiptap-editor .ProseMirror li {
+  @apply my-1;
+}
+
+/* Task lists */
+.tiptap-editor .ProseMirror ul[data-type="taskList"] {
+  @apply list-none pl-0;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li {
+  @apply flex items-start gap-2 my-1;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label {
+  @apply flex items-center;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label > input {
+  @apply cursor-pointer;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > div {
+  @apply flex-1;
+}
+
+/* Blockquotes */
+.tiptap-editor .ProseMirror blockquote {
+  @apply border-l-4 border-border pl-4 italic text-muted-foreground my-4;
+}
+
+/* Links */
+.tiptap-editor .ProseMirror a {
+  @apply text-primary underline underline-offset-2 cursor-pointer;
+}
+
+/* Highlight */
+.tiptap-editor .ProseMirror mark {
+  @apply bg-yellow-200 dark:bg-yellow-800/50 rounded px-0.5;
+}
+
+/* Horizontal rule */
+.tiptap-editor .ProseMirror hr {
+  @apply border-border my-6;
+}
+
+/* Selection highlight */
+.tiptap-editor .ProseMirror ::selection {
+  @apply bg-primary/20;
+}

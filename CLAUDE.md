@@ -20,7 +20,7 @@ npm run lint     # Run ESLint
 - **Framework**: Next.js 15 (App Router, React 19, TypeScript)
 - **Database/Auth**: Supabase (PostgreSQL + Supabase Auth)
 - **Styling**: Tailwind CSS + shadcn/ui (new-york style, neutral base)
-- **State**: Zustand (planned), TanStack Query (planned)
+- **State**: Zustand, TanStack Query
 - **AI**: Vercel AI SDK + OpenRouter (planned)
 - **Background Jobs**: Inngest (planned)
 - **Editor**: Tiptap
@@ -57,6 +57,7 @@ app/                              # Next.js App Router (routes only)
 
 components/                       # Shared/reusable components
   ui/                             # shadcn/ui design system (do not modify)
+  editor/                         # Reusable Tiptap markdown editor
   layout/                         # Layout components (sidebar, inspector, header)
   forms/
     auth/                         # Auth form components

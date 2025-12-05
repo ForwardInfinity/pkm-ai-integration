@@ -7,6 +7,7 @@ import { useNote, useUpdateNote, useCreateNote } from '../hooks'
 import { useDebouncedCallback } from '@/hooks/use-debounce'
 import { useNoteEditorStore } from '@/stores'
 import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Loader2, Check, AlertCircle, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -181,9 +182,9 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex h-full flex-col">
       {/* Editor content */}
-      <div className="flex-1 overflow-auto">
+      <ScrollArea className="flex-1">
         <div className="max-w-3xl mx-auto px-8 py-12">
           {/* Save status - floating subtle indicator */}
           <div className="flex justify-end mb-4 min-h-[20px]">
@@ -248,7 +249,7 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
             className="min-h-[400px]"
           />
         </div>
-      </div>
+      </ScrollArea>
     </div>
   )
 }

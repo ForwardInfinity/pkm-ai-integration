@@ -11,7 +11,9 @@
       "Bash(npm install:*)",
       "Bash(npm run build:*)",
       "mcp__supabase__list_tables",
-      "mcp__supabase__execute_sql"
+      "mcp__supabase__execute_sql",
+      "Bash(dir:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

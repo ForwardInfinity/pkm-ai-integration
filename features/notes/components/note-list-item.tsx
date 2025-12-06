@@ -1,9 +1,10 @@
 'use client'
 
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { formatDistanceToNow } from 'date-fns'
 import { Pin } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTabsActions } from '@/stores'
 import type { NoteListItem as NoteListItemType } from '../types'
 
 interface NoteListItemProps {
@@ -11,13 +12,30 @@ interface NoteListItemProps {
 }
 
 export function NoteListItem({ note }: NoteListItemProps) {
+  const router = useRouter()
+  const { openTab } = useTabsActions()
+
   const formattedDate = formatDistanceToNow(new Date(note.updated_at), {
     addSuffix: true,
   })
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    router.push(`/notes/${note.id}`)
+  }
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 1) {
+      e.preventDefault()
+      openTab(note.id, note.title || 'Untitled', false)
+    }
+  }
+
   return (
-    <Link
+    <a
       href={`/notes/${note.id}`}
+      onClick={handleClick}
+      onMouseDown={handleMouseDown}
       className={cn(
         'group block rounded-lg border bg-card p-4 transition-all',
         'hover:border-primary/50 hover:shadow-sm',
@@ -64,6 +82,6 @@ export function NoteListItem({ note }: NoteListItemProps) {
           )}
         </div>
       )}
-    </Link>
+    </a>
   )
 }

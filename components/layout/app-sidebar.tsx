@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { Plus, PanelLeftClose } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
+import { Plus, PanelLeftClose, FileText } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import { sidebarNavigation } from "@/config/navigation"
 import { Logo } from "@/components/shared/logo"
 import { TooltipIconButton } from "@/components/shared/tooltip-icon-button"
 import { UserNav } from "@/components/layout/user-nav"
+import { SidebarNoteList } from "@/components/layout/sidebar-note-list"
 import { LAYOUT_CONSTANTS } from "@/types/layout.types"
 
 interface AppSidebarProps {
@@ -28,6 +29,11 @@ interface AppSidebarProps {
 
 export function AppSidebar({ isCollapsed, email, onToggle }: AppSidebarProps) {
   const pathname = usePathname()
+  const router = useRouter()
+
+  const handleNewNote = () => {
+    router.push("/notes/new")
+  }
 
   return (
     <div
@@ -62,9 +68,10 @@ export function AppSidebar({ isCollapsed, email, onToggle }: AppSidebarProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                asChild
                 variant={isCollapsed ? "ghost" : "default"}
                 size={isCollapsed ? "icon" : "default"}
+                onClick={handleNewNote}
+                aria-label="Create new note"
                 className={cn(
                   "w-full",
                   isCollapsed
@@ -72,13 +79,11 @@ export function AppSidebar({ isCollapsed, email, onToggle }: AppSidebarProps) {
                     : "justify-start"
                 )}
               >
-                <Link href="/notes/new" aria-label="Create new note">
-                  <Plus
-                    className={cn("h-4 w-4", !isCollapsed && "mr-2")}
-                    aria-hidden="true"
-                  />
-                  {!isCollapsed && "New Note"}
-                </Link>
+                <Plus
+                  className={cn("h-4 w-4", !isCollapsed && "mr-2")}
+                  aria-hidden="true"
+                />
+                {!isCollapsed && "New Note"}
               </Button>
             </TooltipTrigger>
             {isCollapsed && (
@@ -97,69 +102,101 @@ export function AppSidebar({ isCollapsed, email, onToggle }: AppSidebarProps) {
           )}
           aria-label="Sidebar navigation"
         >
-          {sidebarNavigation.map((link) => {
-            const isActive =
-              pathname === link.href || pathname.startsWith(`${link.href}/`)
+          {/* Collapsible Notes Section - only when expanded */}
+          {!isCollapsed && <SidebarNoteList />}
 
-            return isCollapsed ? (
-              <TooltipProvider key={link.href} delayDuration={0}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Link
-                      href={link.href}
-                      className={cn(
-                        buttonVariants({
-                          variant: isActive ? "secondary" : "ghost",
-                          size: "icon",
-                        }),
-                        "h-10 w-10 hover:bg-muted/50",
-                        isActive && "font-medium"
-                      )}
-                      aria-current={isActive ? "page" : undefined}
-                    >
-                      <link.icon className="h-4 w-4" aria-hidden="true" />
-                      <span className="sr-only">{link.title}</span>
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="flex items-center gap-4">
-                    {link.title}
-                    {link.badge && (
-                      <span className="ml-auto text-muted-foreground">0</span>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  buttonVariants({
-                    variant: isActive ? "secondary" : "ghost",
-                    size: "sm",
-                  }),
-                  "justify-start",
-                  isActive && "font-medium"
-                )}
-                aria-current={isActive ? "page" : undefined}
-              >
-                <link.icon className="mr-2 h-4 w-4" aria-hidden="true" />
-                {link.title}
-                {link.badge && (
-                  <span
+          {/* Notes icon when collapsed */}
+          {isCollapsed && (
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href="/notes"
                     className={cn(
-                      "ml-auto text-xs",
-                      isActive
-                        ? "text-secondary-foreground"
-                        : "text-muted-foreground"
+                      buttonVariants({
+                        variant: pathname.startsWith("/notes") ? "secondary" : "ghost",
+                        size: "icon",
+                      }),
+                      "h-10 w-10 hover:bg-muted/50",
+                      pathname.startsWith("/notes") && "font-medium"
                     )}
+                    aria-current={pathname.startsWith("/notes") ? "page" : undefined}
                   >
-                    0
-                  </span>
-                )}
-              </Link>
-            )
-          })}
+                    <FileText className="h-4 w-4" aria-hidden="true" />
+                    <span className="sr-only">Notes</span>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right">Notes</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {/* Other navigation links (excluding Notes) */}
+          {sidebarNavigation
+            .filter((link) => link.href !== "/notes")
+            .map((link) => {
+              const isActive =
+                pathname === link.href || pathname.startsWith(`${link.href}/`)
+
+              return isCollapsed ? (
+                <TooltipProvider key={link.href} delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link
+                        href={link.href}
+                        className={cn(
+                          buttonVariants({
+                            variant: isActive ? "secondary" : "ghost",
+                            size: "icon",
+                          }),
+                          "h-10 w-10 hover:bg-muted/50",
+                          isActive && "font-medium"
+                        )}
+                        aria-current={isActive ? "page" : undefined}
+                      >
+                        <link.icon className="h-4 w-4" aria-hidden="true" />
+                        <span className="sr-only">{link.title}</span>
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="flex items-center gap-4">
+                      {link.title}
+                      {link.badge && (
+                        <span className="ml-auto text-muted-foreground">0</span>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={cn(
+                    buttonVariants({
+                      variant: isActive ? "secondary" : "ghost",
+                      size: "sm",
+                    }),
+                    "justify-start",
+                    isActive && "font-medium"
+                  )}
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  <link.icon className="mr-2 h-4 w-4" aria-hidden="true" />
+                  {link.title}
+                  {link.badge && (
+                    <span
+                      className={cn(
+                        "ml-auto text-xs",
+                        isActive
+                          ? "text-secondary-foreground"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      0
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
         </nav>
       </ScrollArea>
 

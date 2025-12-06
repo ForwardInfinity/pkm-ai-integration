@@ -12,3 +12,12 @@ export {
   useCurrentNote,
   useNoteEditorActions,
 } from "./note-editor-store"
+
+export {
+  useTabsStore,
+  useTabs,
+  useActiveTabId,
+  useActiveTab,
+  useTabsActions,
+  type Tab,
+} from "./tabs-store"

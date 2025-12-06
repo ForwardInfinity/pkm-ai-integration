@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { usePathname } from "next/navigation"
 import type { ImperativePanelHandle } from "react-resizable-panels"
 import {
   ResizableHandle,
@@ -10,6 +11,8 @@ import {
 import { cn } from "@/lib/utils"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { InspectorPanel } from "@/components/layout/inspector-panel"
+import { TabBar } from "@/components/layout/tab-bar"
+import { TabContentManager } from "@/components/layout/tab-content-manager"
 import { PanelRight, PanelLeft } from "lucide-react"
 import { TooltipIconButton } from "@/components/shared/tooltip-icon-button"
 import { useLayoutStore } from "@/stores/layout-store"
@@ -30,8 +33,12 @@ export function ThreePanelLayout({
   defaultInspectorCollapsed,
   email,
 }: ThreePanelLayoutProps) {
+  const pathname = usePathname()
   const sidebarRef = React.useRef<ImperativePanelHandle>(null)
   const inspectorRef = React.useRef<ImperativePanelHandle>(null)
+
+  // Check if we're on a notes route - use TabContentManager instead of children
+  const isNotesRoute = pathname.startsWith("/notes")
 
   // Use Zustand store for state
   const {
@@ -177,7 +184,12 @@ export function ThreePanelLayout({
           defaultSize={initialSizes.main}
           minSize={LAYOUT_CONSTANTS.MAIN_MIN_SIZE}
         >
-          {children}
+          <div className="flex h-full flex-col">
+            {isNotesRoute && <TabBar />}
+            <div className="flex-1 overflow-hidden">
+              {isNotesRoute ? <TabContentManager /> : children}
+            </div>
+          </div>
         </ResizablePanel>
 
         <ResizableHandle

@@ -6,7 +6,7 @@ import { MarkdownEditor } from '@/components/editor'
 import { useNote } from '../hooks'
 import { useAutoSave } from '../hooks/use-auto-save'
 import { useBeforeunloadSave } from '@/hooks/use-beforeunload-save'
-import { useNoteEditorStore } from '@/stores'
+import { useNoteEditorStore, useTabsActions } from '@/stores'
 import { getNoteLocally } from '@/lib/local-db/note-cache'
 import { getSyncQueue } from '@/lib/local-db/sync-queue'
 import { Button } from '@/components/ui/button'
@@ -17,9 +17,10 @@ import type { LocalNote } from '@/lib/local-db'
 
 interface NoteEditorProps {
   noteId: string
+  tabId: string
 }
 
-export function NoteEditor({ noteId }: NoteEditorProps) {
+export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   const isNewNote = noteId === 'new'
   const hasUpdatedUrl = useRef(false)
 
@@ -36,6 +37,9 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
 
   // Store for sharing note context with inspector
   const { setCurrentNote, setCurrentNoteId, reset } = useNoteEditorStore()
+  
+  // Tab management
+  const { updateTabTitle, updateTabNoteId } = useTabsActions()
 
   // Local state for form fields
   const [title, setTitle] = useState('')
@@ -102,10 +106,14 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
         }
       })
       setCurrentNote(note)
+      // Update tab title when note loads
+      if (tabId) {
+        updateTabTitle(tabId, note.title || 'Untitled')
+      }
     } else if (isNewNote) {
       setCurrentNoteId(localNoteId)
     }
-  }, [note, isNewNote, isRecovering, noteId, localNoteId, setCurrentNote, setCurrentNoteId])
+  }, [note, isNewNote, isRecovering, noteId, localNoteId, setCurrentNote, setCurrentNoteId, tabId, updateTabTitle])
 
   // Watch for server ID mapping and update URL (without triggering refetch)
   useEffect(() => {
@@ -117,12 +125,16 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
           hasUpdatedUrl.current = true
           // Use native history API to avoid Next.js refetch
           window.history.replaceState(null, '', `/notes/${serverId}`)
+          // Update tab's noteId from temp to real
+          if (tabId) {
+            updateTabNoteId(tabId, serverId)
+          }
         }
       }, 500)
 
       return () => clearInterval(checkServerId)
     }
-  }, [isNewNote, localNoteId, getServerId])
+  }, [isNewNote, localNoteId, getServerId, tabId, updateTabNoteId])
 
   // Cleanup store on unmount
   useEffect(() => {
@@ -141,6 +153,10 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
     const newTitle = e.target.value
     setTitle(newTitle)
     save({ title: newTitle })
+    // Update tab title
+    if (tabId) {
+      updateTabTitle(tabId, newTitle || 'Untitled')
+    }
   }
 
   // Handle problem change - instant save

@@ -1,9 +1,4 @@
-import { NoteList } from '@/features/notes'
-
+// Note list is rendered by TabContentManager when no tabs are open
 export default function NotesPage() {
-  return (
-    <div className="flex h-full flex-col">
-      <NoteList />
-    </div>
-  )
+  return null
 }

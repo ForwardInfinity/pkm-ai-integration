@@ -1,11 +1,5 @@
-import { NoteEditor } from '@/features/notes/components'
-
-interface NoteEditorPageProps {
-  params: Promise<{ id: string }>
-}
-
-export default async function NoteEditorPage({ params }: NoteEditorPageProps) {
-  const { id } = await params
-
-  return <NoteEditor noteId={id} />
+// Note content is rendered by TabContentManager in three-panel-layout
+// This page exists to handle direct URL access - the TabBar effect opens the tab
+export default function NoteEditorPage() {
+  return null
 }

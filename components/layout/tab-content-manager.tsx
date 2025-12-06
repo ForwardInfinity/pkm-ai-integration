@@ -1,15 +1,16 @@
 "use client"
 
-import { useTabs, useActiveTabId } from "@/stores"
+import { useTabs, useActiveTabId, useShowListView } from "@/stores"
 import { NoteEditor } from "@/features/notes/components"
 import { NoteList } from "@/features/notes"
 
 export function TabContentManager() {
   const tabs = useTabs()
   const activeTabId = useActiveTabId()
+  const showListView = useShowListView()
 
-  // Show note list when no tabs are open
-  if (tabs.length === 0) {
+  // Show note list when no tabs are open or when list view is requested
+  if (tabs.length === 0 || showListView) {
     return <NoteList />
   }
 

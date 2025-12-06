@@ -17,6 +17,7 @@ export interface Tab {
 interface TabsState {
   tabs: Tab[]
   activeTabId: string | null
+  showListView: boolean
 }
 
 interface TabsActions {
@@ -27,6 +28,7 @@ interface TabsActions {
   updateTabNoteId: (tabId: string, noteId: string) => void
   reorderTabs: (fromIndex: number, toIndex: number) => void
   getTabByNoteId: (noteId: string) => Tab | undefined
+  setShowListView: (show: boolean) => void
   reset: () => void
 }
 
@@ -35,6 +37,7 @@ type TabsStore = TabsState & TabsActions
 const initialState: TabsState = {
   tabs: [],
   activeTabId: null,
+  showListView: false,
 }
 
 export const useTabsStore = create<TabsStore>()(
@@ -74,6 +77,7 @@ export const useTabsStore = create<TabsStore>()(
         set({
           tabs: newTabs,
           activeTabId: activate ? newTab.id : state.activeTabId,
+          showListView: activate ? false : state.showListView,
         })
 
         return newTab.id
@@ -108,7 +112,7 @@ export const useTabsStore = create<TabsStore>()(
         const state = get()
         const tab = state.tabs.find((t) => t.id === tabId)
         if (tab) {
-          set({ activeTabId: tabId })
+          set({ activeTabId: tabId, showListView: false })
         }
       },
 
@@ -141,6 +145,10 @@ export const useTabsStore = create<TabsStore>()(
         return get().tabs.find((t) => t.noteId === noteId)
       },
 
+      setShowListView: (show: boolean) => {
+        set({ showListView: show })
+      },
+
       reset: () => set(initialState),
     }),
     {
@@ -157,6 +165,7 @@ export const useTabsStore = create<TabsStore>()(
 // Selector hooks
 export const useTabs = () => useTabsStore((state) => state.tabs)
 export const useActiveTabId = () => useTabsStore((state) => state.activeTabId)
+export const useShowListView = () => useTabsStore((state) => state.showListView)
 export const useActiveTab = () =>
   useTabsStore((state) => state.tabs.find((t) => t.id === state.activeTabId))
 
@@ -170,6 +179,7 @@ export const useTabsActions = () =>
       updateTabNoteId: state.updateTabNoteId,
       reorderTabs: state.reorderTabs,
       getTabByNoteId: state.getTabByNoteId,
+      setShowListView: state.setShowListView,
       reset: state.reset,
     }))
   )

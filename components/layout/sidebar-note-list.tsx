@@ -22,7 +22,7 @@ export function SidebarNoteList() {
   const pathname = usePathname()
   const router = useRouter()
   const { data: notes, isLoading } = useNotes()
-  const { openTab } = useTabsActions()
+  const { openTab, setShowListView } = useTabsActions()
   const [isOpen, setIsOpen] = useState(true)
 
   useEffect(() => {
@@ -109,15 +109,19 @@ export function SidebarNoteList() {
                 </a>
               )
             })}
-            <Link
-              href="/notes"
+            <button
+              type="button"
+              onClick={() => {
+                setShowListView(true)
+                router.push("/notes")
+              }}
               className={cn(
                 buttonVariants({ variant: "ghost", size: "sm" }),
                 "w-full justify-start h-8 px-2 text-muted-foreground text-xs"
               )}
             >
               See All
-            </Link>
+            </button>
           </div>
         )}
       </CollapsibleContent>

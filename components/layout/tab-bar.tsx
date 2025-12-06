@@ -19,10 +19,16 @@ export function TabBar() {
 
   const tabs = useTabs()
   const activeTabId = useActiveTabId()
-  const { openTab, closeTab, activateTab } = useTabsActions()
+  const { openTab, closeTab, activateTab, setShowListView } = useTabsActions()
 
   // Handle URL changes - URL is the single source of truth
   React.useEffect(() => {
+    // Handle /notes route (list view)
+    if (pathname === "/notes") {
+      setShowListView(true)
+      return
+    }
+
     if (!pathname.startsWith("/notes/")) return
 
     const noteIdFromUrl = pathname.replace("/notes/", "")

@@ -17,6 +17,7 @@ export {
   useTabsStore,
   useTabs,
   useActiveTabId,
+  useShowListView,
   useActiveTab,
   useTabsActions,
   type Tab,

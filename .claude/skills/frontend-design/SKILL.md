@@ -1,7 +1,6 @@
 ---
 name: frontend-design
 description: Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, or applications. Generates creative, polished code that avoids generic AI aesthetics.
-license: Complete terms in LICENSE.txt
 ---
 
 This skill guides creation of distinctive, production-grade frontend interfaces that avoid generic "AI slop" aesthetics. Implement real working code with exceptional attention to aesthetic details and creative choices.
@@ -40,31 +39,3 @@ Interpret creatively and make unexpected choices that feel genuinely designed fo
 **IMPORTANT**: Match implementation complexity to the aesthetic vision. Maximalist designs need elaborate code with extensive animations and effects. Minimalist or refined designs need restraint, precision, and careful attention to spacing, typography, and subtle details. Elegance comes from executing the vision well.
 
 Remember: Claude is capable of extraordinary creative work. Don't hold back, show what can truly be created when thinking outside the box and committing fully to a distinctive vision.
-
-## Integration with Shadcn Projects
-
-When working on projects using **shadcn/ui** component library:
-
-**Invoke `shadcn-management` skill when:**
-- Need to discover available shadcn components
-- Building features requiring multiple components (forms, dialogs, data tables)
-- Need component installation commands
-- Want component examples and implementation patterns
-
-**Workflow for shadcn projects:**
-1. Use `shadcn-management` for component discovery and structure
-2. Apply `frontend-design` principles for visual customization:
-   - Override default theme in `globals.css` CSS variables
-   - Extend Tailwind config with custom colors, fonts, animations
-   - Add distinctive typography (replace default fonts)
-   - Enhance with motion and micro-interactions
-   - Apply creative backgrounds, textures, spatial composition
-
-**Key customization files:**
-```
-globals.css     → CSS variables: --primary, --background, --foreground, fonts
-tailwind.config → theme.extend: colors, fontFamily, animation, keyframes
-components/ui/* → className overrides for specific components
-```
-
-**Remember:** Shadcn provides solid structure; your job is to make it visually distinctive and memorable through creative theming.

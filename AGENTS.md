@@ -6,16 +6,15 @@ Note-taking system implementing evolutionary epistemology (Popper/Deutsch)—kno
 
 - `npm run dev` — Dev server with Turbopack (http://localhost:3000)
 - `npm run build` — Production build
-- `npm run start` — Start production server
 - `npm run lint` — ESLint
 
 ## Tech Stack
 
 - **Framework**: Next.js 15 (App Router), React 19, TypeScript
-- **Database/Auth**: Supabase (PostgreSQL + Auth, RLS on all tables)
+- **Database/Auth**: Supabase (PostgreSQL + pgvector + Auth, RLS on all tables)
 - **Styling**: Tailwind CSS + shadcn/ui
-- **State**: Zustand (global), TanStack Query (server state)
-- **AI**: Vercel AI SDK + OpenRouter
+- **State**: Zustand (global), TanStack Query v5 (server state)
+- **AI**: Vercel AI SDK 5.0+ + OpenRouter
 - **Background Jobs**: Inngest
 - **Editor**: Tiptap | **Graph**: React Flow
 
@@ -24,11 +23,11 @@ Note-taking system implementing evolutionary epistemology (Popper/Deutsch)—kno
 ```
 app/                    # Next.js App Router (routes only)
   (auth)/               # Public: /login, /sign-up, /forgot-password
-  (dashboard)/          # Protected: /notes (other routes not yet wired)
+  (dashboard)/          # Protected: /notes, /conflicts, /graph, /trash
   (admin)/              # Admin: /admin
 features/               # Feature modules (domain logic—some awaiting route wiring)
 components/             # Shared/reusable components
-  ui/                   # shadcn/ui (do not modify)
+  ui/                   # shadcn/ui (do NOT modify)
 lib/                    # Core utilities
   supabase/             # server.ts (await), client.ts (no await)
   inngest/              # Background job definitions
@@ -68,9 +67,11 @@ New domain features go in `features/[domain]/`:
 
 ### AI Integration
 
-- Use Vercel AI SDK (`ai` package) with OpenRouter
+- Use Vercel AI SDK (`ai` package) with OpenRouter provider
 - AI actions go in `features/[domain]/actions/` as server actions
+- Embeddings: OpenAI text-embedding-3-small (1536 dimensions)
 - Background jobs via Inngest (`lib/inngest/`)
+- LLM: Route through OpenRouter (model configurable)
 
 ## Database
 
@@ -89,7 +90,7 @@ New domain features go in `features/[domain]/`:
 
 ## Key Product Concepts
 
-When implementing features, understand these core concepts from the PRD:
+When implementing features, understand these core concepts from the `PRD.md`:
 
 1. **Problem Field**: Every note has an explicit problem field—the epistemic differentiator. Solutions without problems are unjudgeable. AI can reconstruct problems from content.
 
@@ -99,6 +100,10 @@ When implementing features, understand these core concepts from the PRD:
 
 4. **Selection Pressure**: Features should create productive friction that improves ideas: conflict surfacing, AI criticism, semantic relevance.
 
+## Aesthetic Direction
+- Clean, modern, Apple/Notion-like minimalism. Heavy use of whitespace. Sans-serif typography.
+- Professional, organized, airy, functional. Distraction-free writing.
+
 ## Verification
 
 Before completing work:
@@ -106,11 +111,11 @@ Before completing work:
 2. `npm run lint` — must pass
 3. Check TypeScript errors in affected files
 
+## Tooling Rules
+- Always use `ref` MCP to check docs before writing code for: Tiptap, Vercel AI SDK, Inngest or React Flow (@xyflow/react)
+
 ## Additional Context
 
 - Product vision, user stories: see `PRD.md`
 - Database migrations: see `supabase/migrations/`
 - Generated types: see `types/database.types.ts`
-
-## Rules
-- Automatically use context7 mcp for code generation and library documentation

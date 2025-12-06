@@ -11,11 +11,11 @@
 
 /* Abundant whitespace for distraction-free writing */
 .tiptap-editor .ProseMirror > * + * {
-  @apply mt-4;
+  @apply mt-1;
 }
 
 .tiptap-editor .ProseMirror p {
-  @apply leading-relaxed;
+  @apply my-0 leading-snug;
 }
 
 /* Headings */

@@ -11,7 +11,6 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Typography from '@tiptap/extension-typography'
 import { useEffect, useRef } from 'react'
-import { useDebouncedCallback } from '@/hooks/use-debounce'
 import { EditorBubbleMenu } from './bubble-menu'
 import type { MarkdownEditorProps } from './types'
 import { cn } from '@/lib/utils'
@@ -22,17 +21,11 @@ export function MarkdownEditor({
   placeholder = 'Start writing...',
   onChange,
   onSave,
-  autoSaveDelay = 2000,
   className,
   editable = true,
 }: MarkdownEditorProps) {
   const initialContentRef = useRef(content)
   const hasInitializedRef = useRef(false)
-
-  // Debounced save callback
-  const debouncedSave = useDebouncedCallback((markdown: string) => {
-    onSave?.(markdown)
-  }, autoSaveDelay)
 
   const editor = useEditor({
     editorProps: {
@@ -85,7 +78,8 @@ export function MarkdownEditor({
       const markdownStorage = (editor.storage as any).markdown
       const markdown = markdownStorage?.getMarkdown?.() ?? ''
       onChange?.(markdown)
-      debouncedSave(markdown)
+      // Call onSave immediately - debouncing is handled by useAutoSave hook
+      onSave?.(markdown)
     },
   })
 

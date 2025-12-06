@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
-import type { Note, UpdateNoteInput, CreateNoteInput } from '../types'
+import type { Note, UpdateNoteInput, CreateNoteInput, NoteListItem } from '../types'
 import { noteKeys } from './use-notes'
 
 // Update note params include the ID
@@ -74,18 +74,54 @@ async function deleteNote(id: string): Promise<void> {
 }
 
 /**
- * Hook to update a note
+ * Hook to update a note with optimistic updates
  */
 export function useUpdateNote() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: updateNote,
-    onSuccess: (data) => {
-      // Update the detail cache
-      queryClient.setQueryData(noteKeys.detail(data.id), data)
-      // Invalidate list to refetch
-      queryClient.invalidateQueries({ queryKey: noteKeys.lists() })
+    onMutate: async (newData) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: noteKeys.detail(newData.id) })
+
+      // Snapshot the previous value
+      const previousNote = queryClient.getQueryData<Note>(noteKeys.detail(newData.id))
+
+      // Optimistically update the cache
+      if (previousNote) {
+        queryClient.setQueryData<Note>(noteKeys.detail(newData.id), {
+          ...previousNote,
+          ...newData,
+          updated_at: new Date().toISOString(),
+        })
+      }
+
+      // Return context with the previous value
+      return { previousNote }
+    },
+    onError: (_err, newData, context) => {
+      // Rollback on error
+      if (context?.previousNote) {
+        queryClient.setQueryData(noteKeys.detail(newData.id), context.previousNote)
+      }
+    },
+    onSettled: (data) => {
+      // Always sync with server data after mutation settles
+      if (data) {
+        queryClient.setQueryData(noteKeys.detail(data.id), data)
+        // Update list cache directly (no invalidation/refetch)
+        queryClient.setQueryData<NoteListItem[]>(noteKeys.lists(), (old) => {
+          if (!old) return old
+          return old.map(n => n.id === data.id ? {
+            ...n,
+            title: data.title,
+            problem: data.problem,
+            updated_at: data.updated_at,
+            word_count: data.word_count,
+          } : n)
+        })
+      }
     },
   })
 }
@@ -101,8 +137,21 @@ export function useCreateNote() {
     onSuccess: (data) => {
       // Set the new note in cache
       queryClient.setQueryData(noteKeys.detail(data.id), data)
-      // Invalidate list to refetch
-      queryClient.invalidateQueries({ queryKey: noteKeys.lists() })
+      // Add to list cache directly (no invalidation/refetch)
+      queryClient.setQueryData<NoteListItem[]>(noteKeys.lists(), (old) => {
+        if (!old) return old
+        // Add new note to top of list
+        const newEntry: NoteListItem = {
+          id: data.id,
+          title: data.title,
+          problem: data.problem,
+          updated_at: data.updated_at,
+          word_count: data.word_count,
+          tags: data.tags || [],
+          is_pinned: data.is_pinned || false,
+        }
+        return [newEntry, ...old]
+      })
     },
   })
 }
@@ -118,8 +167,11 @@ export function useDeleteNote() {
     onSuccess: (_, id) => {
       // Remove from detail cache
       queryClient.removeQueries({ queryKey: noteKeys.detail(id) })
-      // Invalidate list to refetch
-      queryClient.invalidateQueries({ queryKey: noteKeys.lists() })
+      // Remove from list cache directly (no invalidation/refetch)
+      queryClient.setQueryData<NoteListItem[]>(noteKeys.lists(), (old) => {
+        if (!old) return old
+        return old.filter(n => n.id !== id)
+      })
     },
   })
 }

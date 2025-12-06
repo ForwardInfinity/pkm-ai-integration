@@ -10,7 +10,5 @@ export {
   useNoteEditorStore,
   useCurrentNoteId,
   useCurrentNote,
-  useIsSaving,
-  useHasUnsavedChanges,
   useNoteEditorActions,
 } from "./note-editor-store"

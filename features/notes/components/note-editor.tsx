@@ -1,30 +1,38 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { nanoid } from 'nanoid'
 import { MarkdownEditor } from '@/components/editor'
-import { useNote, useUpdateNote, useCreateNote } from '../hooks'
-import { useDebouncedCallback } from '@/hooks/use-debounce'
+import { useNote } from '../hooks'
+import { useAutoSave } from '../hooks/use-auto-save'
+import { useBeforeunloadSave } from '@/hooks/use-beforeunload-save'
 import { useNoteEditorStore } from '@/stores'
+import { getNoteLocally } from '@/lib/local-db/note-cache'
+import { getSyncQueue } from '@/lib/local-db/sync-queue'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Loader2, Check, AlertCircle, Sparkles } from 'lucide-react'
+import { Loader2, AlertCircle, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { LocalNote } from '@/lib/local-db'
 
 interface NoteEditorProps {
   noteId: string
 }
 
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
-
 export function NoteEditor({ noteId }: NoteEditorProps) {
-  const router = useRouter()
   const isNewNote = noteId === 'new'
+  const hasUpdatedUrl = useRef(false)
+
+  // Generate stable local ID for new notes
+  const localNoteId = useMemo(() => {
+    if (isNewNote) {
+      return `temp_${nanoid()}`
+    }
+    return noteId
+  }, [noteId, isNewNote])
 
   // Data fetching
   const { data: note, isLoading, error } = useNote(noteId)
-  const updateNote = useUpdateNote()
-  const createNote = useCreateNote()
 
   // Store for sharing note context with inspector
   const { setCurrentNote, setCurrentNoteId, reset } = useNoteEditorStore()
@@ -33,21 +41,88 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
   const [title, setTitle] = useState('')
   const [problem, setProblem] = useState('')
   const [content, setContent] = useState('')
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [hasCreated, setHasCreated] = useState(false)
-  const [createdNoteId, setCreatedNoteId] = useState<string | null>(null)
+  const [isRecovering, setIsRecovering] = useState(true)
+
+  // Auto-save hook with tab sync
+  const { save, getServerId } = useAutoSave({
+    noteId: localNoteId,
+    onExternalChange: useCallback((data: Partial<LocalNote>) => {
+      // Update local state from other tabs
+      if (data.title !== undefined) setTitle(data.title)
+      if (data.problem !== undefined) setProblem(data.problem ?? '')
+      if (data.content !== undefined) setContent(data.content)
+    }, []),
+  })
+
+  // Beforeunload handler for safety
+  useBeforeunloadSave()
+
+  // Check for pending local changes on mount (recovery)
+  useEffect(() => {
+    async function checkLocalChanges() {
+      try {
+        const localNote = await getNoteLocally(localNoteId)
+        if (localNote && localNote.syncStatus === 'pending') {
+          // Recover from local storage
+          setTitle(localNote.title)
+          setProblem(localNote.problem ?? '')
+          setContent(localNote.content)
+          // Resume sync queue
+          const syncQueue = getSyncQueue()
+          syncQueue.enqueue(localNoteId, {
+            title: localNote.title,
+            problem: localNote.problem,
+            content: localNote.content,
+            wordCount: localNote.wordCount,
+          })
+        }
+      } catch {
+        // Ignore errors - just use server data
+      } finally {
+        setIsRecovering(false)
+      }
+    }
+
+    if (!isNewNote) {
+      checkLocalChanges()
+    } else {
+      setIsRecovering(false)
+    }
+  }, [localNoteId, isNewNote])
 
   // Initialize form from loaded note and update store
   useEffect(() => {
-    if (note && !isNewNote) {
-      setTitle(note.title ?? '')
-      setProblem(note.problem ?? '')
-      setContent(note.content ?? '')
+    if (note && !isNewNote && !isRecovering) {
+      // Only set from server if we don't have pending local changes
+      getNoteLocally(noteId).then((localNote) => {
+        if (!localNote || localNote.syncStatus === 'synced') {
+          setTitle(note.title ?? '')
+          setProblem(note.problem ?? '')
+          setContent(note.content ?? '')
+        }
+      })
       setCurrentNote(note)
     } else if (isNewNote) {
-      setCurrentNoteId('new')
+      setCurrentNoteId(localNoteId)
     }
-  }, [note, isNewNote, setCurrentNote, setCurrentNoteId])
+  }, [note, isNewNote, isRecovering, noteId, localNoteId, setCurrentNote, setCurrentNoteId])
+
+  // Watch for server ID mapping and update URL (without triggering refetch)
+  useEffect(() => {
+    if (isNewNote && !hasUpdatedUrl.current) {
+      const checkServerId = setInterval(() => {
+        const serverId = getServerId(localNoteId)
+        if (serverId && !hasUpdatedUrl.current) {
+          clearInterval(checkServerId)
+          hasUpdatedUrl.current = true
+          // Use native history API to avoid Next.js refetch
+          window.history.replaceState(null, '', `/notes/${serverId}`)
+        }
+      }, 500)
+
+      return () => clearInterval(checkServerId)
+    }
+  }, [isNewNote, localNoteId, getServerId])
 
   // Cleanup store on unmount
   useEffect(() => {
@@ -61,47 +136,18 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
     return text.trim().split(/\s+/).filter(Boolean).length
   }, [])
 
-  // Debounced save for title and problem fields
-  const debouncedSaveFields = useDebouncedCallback(
-    async (data: { title?: string; problem?: string }) => {
-      const targetId = createdNoteId ?? noteId
-      if (targetId === 'new') return
-
-      setSaveStatus('saving')
-      try {
-        await updateNote.mutateAsync({
-          id: targetId,
-          ...data,
-        })
-        setSaveStatus('saved')
-        setTimeout(() => setSaveStatus('idle'), 2000)
-      } catch {
-        setSaveStatus('error')
-      }
-    },
-    2000
-  )
-
-  // Handle title change
+  // Handle title change - instant save
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value
     setTitle(newTitle)
-
-    // For existing notes, save immediately (debounced)
-    if (!isNewNote || hasCreated) {
-      debouncedSaveFields({ title: newTitle })
-    }
+    save({ title: newTitle })
   }
 
-  // Handle problem change (now using textarea)
+  // Handle problem change - instant save
   const handleProblemChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newProblem = e.target.value
     setProblem(newProblem)
-
-    // For existing notes, save immediately (debounced)
-    if (!isNewNote || hasCreated) {
-      debouncedSaveFields({ problem: newProblem })
-    }
+    save({ problem: newProblem || null })
   }
 
   // Handle reconstruct problem button click (placeholder for AI integration)
@@ -110,60 +156,25 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
     console.log('Reconstruct problem clicked - AI integration coming soon')
   }
 
-  // Handle content save from editor
-  const handleContentSave = async (markdown: string) => {
-    setContent(markdown)
-
-    // Create new note on first save if this is a new note
-    if (isNewNote && !hasCreated) {
-      if (!title.trim() && !markdown.trim()) return // Don't create empty notes
-
-      setSaveStatus('saving')
-      try {
-        const newNote = await createNote.mutateAsync({
-          title: title.trim() || 'Untitled',
-          problem: problem.trim() || null,
-          content: markdown,
-        })
-        setHasCreated(true)
-        setCreatedNoteId(newNote.id)
-        // Update store with the newly created note
-        setCurrentNote(newNote)
-        // Update URL without full navigation
-        router.replace(`/notes/${newNote.id}`, { scroll: false })
-        setSaveStatus('saved')
-        setTimeout(() => setSaveStatus('idle'), 2000)
-      } catch {
-        setSaveStatus('error')
-      }
-      return
-    }
-
-    // Update existing note
-    const targetId = createdNoteId ?? noteId
-    if (targetId === 'new') return
-
-    setSaveStatus('saving')
-    try {
-      await updateNote.mutateAsync({
-        id: targetId,
+  // Handle content save from editor - instant save
+  const handleContentSave = useCallback(
+    (markdown: string) => {
+      setContent(markdown)
+      save({
         content: markdown,
-        word_count: calculateWordCount(markdown),
+        wordCount: calculateWordCount(markdown),
       })
-      setSaveStatus('saved')
-      setTimeout(() => setSaveStatus('idle'), 2000)
-    } catch {
-      setSaveStatus('error')
-    }
-  }
+    },
+    [save, calculateWordCount]
+  )
 
-  // Handle content change (for local state only, save is handled separately)
+  // Handle content change (for local state only)
   const handleContentChange = (markdown: string) => {
     setContent(markdown)
   }
 
   // Loading state
-  if (!isNewNote && isLoading) {
+  if (!isNewNote && (isLoading || isRecovering)) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -186,11 +197,6 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
       {/* Editor content */}
       <ScrollArea className="flex-1">
         <div className="max-w-3xl mx-auto px-8 py-12">
-          {/* Save status - floating subtle indicator */}
-          <div className="flex justify-end mb-4 min-h-[20px]">
-            <SaveStatusIndicator status={saveStatus} />
-          </div>
-
           {/* Title input - large and prominent */}
           <input
             type="text"
@@ -245,46 +251,10 @@ export function NoteEditor({ noteId }: NoteEditorProps) {
             placeholder="Start writing your thoughts..."
             onChange={handleContentChange}
             onSave={handleContentSave}
-            autoSaveDelay={2000}
             className="min-h-[400px]"
           />
         </div>
       </ScrollArea>
-    </div>
-  )
-}
-
-// Save status indicator component
-function SaveStatusIndicator({ status }: { status: SaveStatus }) {
-  if (status === 'idle') return null
-
-  return (
-    <div
-      className={cn(
-        'flex items-center gap-1.5 text-xs',
-        status === 'saving' && 'text-muted-foreground',
-        status === 'saved' && 'text-green-600 dark:text-green-500',
-        status === 'error' && 'text-destructive'
-      )}
-    >
-      {status === 'saving' && (
-        <>
-          <Loader2 className="h-3 w-3 animate-spin" />
-          <span>Saving...</span>
-        </>
-      )}
-      {status === 'saved' && (
-        <>
-          <Check className="h-3 w-3" />
-          <span>Saved</span>
-        </>
-      )}
-      {status === 'error' && (
-        <>
-          <AlertCircle className="h-3 w-3" />
-          <span>Error saving</span>
-        </>
-      )}
     </div>
   )
 }

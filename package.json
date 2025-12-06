@@ -36,6 +36,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "idb": "^8.0.3",
     "inngest": "^3.46.0",
     "lucide-react": "^0.511.0",
     "nanoid": "^5.1.6",

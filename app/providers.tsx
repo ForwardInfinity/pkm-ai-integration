@@ -33,6 +33,11 @@ function getQueryClient() {
   }
 }
 
+// Export for use in sync-queue and other modules that need direct cache access
+export function getBrowserQueryClient(): QueryClient | undefined {
+  return browserQueryClient
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const queryClient = getQueryClient()
 

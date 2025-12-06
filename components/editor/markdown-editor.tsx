@@ -5,9 +5,8 @@ import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from 'tiptap-markdown'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
-import Underline from '@tiptap/extension-underline'
-import Highlight from '@tiptap/extension-highlight'
 import TaskList from '@tiptap/extension-task-list'
+import { UnderlineMarkdown, HighlightMarkdown } from './extensions'
 import TaskItem from '@tiptap/extension-task-item'
 import Typography from '@tiptap/extension-typography'
 import { useEffect, useRef } from 'react'
@@ -43,7 +42,7 @@ export function MarkdownEditor({
         },
       }),
       Markdown.configure({
-        html: false, // Disable HTML for security
+        html: true, // Enable HTML for underline <u> tag serialization
         tightLists: true, // Cleaner list output
         bulletListMarker: '-', // Use dashes for bullets
         transformPastedText: true, // Parse pasted markdown
@@ -59,8 +58,8 @@ export function MarkdownEditor({
           class: 'text-primary underline underline-offset-2',
         },
       }),
-      Underline,
-      Highlight.configure({
+      UnderlineMarkdown,
+      HighlightMarkdown.configure({
         multicolor: false,
       }),
       TaskList,

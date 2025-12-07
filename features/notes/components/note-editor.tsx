@@ -53,12 +53,33 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   const {
     isLoading: isReconstructing,
     currentSuggestion,
+    showAlternatives,
     reconstruct,
     fetchAlternatives,
-    nextAlternative,
+    selectAlternative,
     reset: resetAI,
     result: aiResult,
   } = useReconstructProblem()
+
+  // Refs for auto-expanding textareas
+  const suggestionTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const problemTextareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-resize suggestion textarea based on content
+  useEffect(() => {
+    if (suggestionTextareaRef.current && currentSuggestion) {
+      suggestionTextareaRef.current.style.height = 'auto'
+      suggestionTextareaRef.current.style.height = `${suggestionTextareaRef.current.scrollHeight}px`
+    }
+  }, [currentSuggestion])
+
+  // Auto-resize problem textarea based on content
+  useEffect(() => {
+    if (problemTextareaRef.current) {
+      problemTextareaRef.current.style.height = 'auto'
+      problemTextareaRef.current.style.height = `${problemTextareaRef.current.scrollHeight}px`
+    }
+  }, [problem])
 
   // Auto-save hook with tab sync
   const { save, getServerId } = useAutoSave({
@@ -187,13 +208,14 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
     }
   }
 
-  // Dismiss current suggestion and try alternative
-  const handleDismissSuggestion = async () => {
-    const next = nextAlternative()
-    if (!next) {
-      // No more alternatives, fetch new ones
-      await fetchAlternatives(content, title)
-    }
+  // Fetch alternatives when "Try Another" is clicked
+  const handleTryAnother = async () => {
+    await fetchAlternatives(content, title)
+  }
+
+  // Select an alternative from the list
+  const handleSelectAlternative = (index: number) => {
+    selectAlternative(index)
   }
 
   // Clear AI suggestion when user types manually
@@ -272,13 +294,13 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
           <div className="relative mb-8 pb-2 border-b border-border/40 group hover:border-border/60 focus-within:border-border/60 transition-colors">
             {currentSuggestion ? (
               // AI suggestion mode
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <textarea
+                  ref={suggestionTextareaRef}
                   value={currentSuggestion}
                   onChange={handleProblemChangeWithAIClear}
-                  rows={2}
                   spellCheck={false}
-                  style={{ resize: 'none' }}
+                  style={{ resize: 'none', minHeight: '2.5rem', overflow: 'hidden' }}
                   className={cn(
                     "w-full bg-primary/5 rounded-md p-2",
                     "text-base text-foreground/80",
@@ -302,7 +324,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={handleDismissSuggestion}
+                    onClick={handleTryAnother}
                     disabled={isReconstructing}
                     className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   >
@@ -323,23 +345,57 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
                     <X className="h-3 w-3 mr-1" />
                     Dismiss
                   </Button>
-                  {aiResult?.alternatives && aiResult.alternatives.length > 0 && (
-                    <span className="text-xs text-muted-foreground/50 ml-auto">
-                      {aiResult.alternatives.length} more suggestions
-                    </span>
-                  )}
                 </div>
+
+                {/* Multiple-choice alternatives */}
+                {showAlternatives && aiResult?.alternatives && aiResult.alternatives.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <p className="text-xs text-muted-foreground">Choose an alternative:</p>
+                    {aiResult.alternatives.map((alt, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => handleSelectAlternative(index)}
+                        className={cn(
+                          "w-full text-left p-3 rounded-md",
+                          "bg-muted/30 hover:bg-muted/50",
+                          "border border-border/40 hover:border-border/60",
+                          "text-sm text-foreground/80",
+                          "transition-colors duration-150",
+                          "focus:outline-none focus:ring-1 focus:ring-primary/30"
+                        )}
+                      >
+                        {alt}
+                      </button>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleTryAnother}
+                      disabled={isReconstructing}
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      {isReconstructing ? (
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                      )}
+                      More alternatives
+                    </Button>
+                  </div>
+                )}
               </div>
             ) : (
               // Normal mode
               <>
                 <textarea
+                  ref={problemTextareaRef}
                   value={problem}
                   onChange={handleProblemChangeWithAIClear}
                   placeholder="What problem does this solve?"
-                  rows={1}
                   spellCheck={false}
-                  style={{ resize: 'none' }}
+                  style={{ resize: 'none', minHeight: '1.5rem', overflow: 'hidden' }}
                   className={cn(
                     "w-full bg-transparent",
                     "text-base text-muted-foreground",

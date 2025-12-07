@@ -8,15 +8,15 @@ interface UseReconstructProblemState {
   isLoading: boolean
   error: string | null
   result: ProblemReconstructionResult | null
-  currentIndex: number
+  currentSuggestion: string | null
+  showAlternatives: boolean
 }
 
 interface UseReconstructProblemReturn extends UseReconstructProblemState {
   reconstruct: (content: string, title: string) => Promise<void>
   fetchAlternatives: (content: string, title: string) => Promise<void>
-  nextAlternative: () => string | null
+  selectAlternative: (index: number) => void
   reset: () => void
-  currentSuggestion: string | null
 }
 
 export function useReconstructProblem(): UseReconstructProblemReturn {
@@ -24,7 +24,8 @@ export function useReconstructProblem(): UseReconstructProblemReturn {
     isLoading: false,
     error: null,
     result: null,
-    currentIndex: 0,
+    currentSuggestion: null,
+    showAlternatives: false,
   })
 
   const reconstruct = useCallback(
@@ -37,7 +38,8 @@ export function useReconstructProblem(): UseReconstructProblemReturn {
           isLoading: false,
           error: null,
           result,
-          currentIndex: 0,
+          currentSuggestion: result.suggestion,
+          showAlternatives: false,
         })
       } catch (err) {
         setState((prev) => ({
@@ -56,12 +58,13 @@ export function useReconstructProblem(): UseReconstructProblemReturn {
 
       try {
         const result = await reconstructProblem(content, title, true)
-        setState({
+        setState((prev) => ({
           isLoading: false,
           error: null,
           result,
-          currentIndex: 0,
-        })
+          currentSuggestion: prev.currentSuggestion || result.suggestion,
+          showAlternatives: true,
+        }))
       } catch (err) {
         setState((prev) => ({
           ...prev,
@@ -73,38 +76,33 @@ export function useReconstructProblem(): UseReconstructProblemReturn {
     []
   )
 
-  const nextAlternative = useCallback(() => {
-    const { result, currentIndex } = state
-    if (!result?.alternatives?.length) return null
-
-    const nextIndex = currentIndex + 1
-    if (nextIndex <= result.alternatives.length) {
-      setState((prev) => ({ ...prev, currentIndex: nextIndex }))
-      return result.alternatives[nextIndex - 1] || null
-    }
-    return null
-  }, [state])
+  const selectAlternative = useCallback((index: number) => {
+    setState((prev) => {
+      const alternative = prev.result?.alternatives?.[index]
+      if (!alternative) return prev
+      return {
+        ...prev,
+        currentSuggestion: alternative,
+        showAlternatives: false,
+      }
+    })
+  }, [])
 
   const reset = useCallback(() => {
     setState({
       isLoading: false,
       error: null,
       result: null,
-      currentIndex: 0,
+      currentSuggestion: null,
+      showAlternatives: false,
     })
   }, [])
-
-  const currentSuggestion =
-    state.result && state.currentIndex === 0
-      ? state.result.suggestion
-      : state.result?.alternatives?.[state.currentIndex - 1] || null
 
   return {
     ...state,
     reconstruct,
     fetchAlternatives,
-    nextAlternative,
+    selectAlternative,
     reset,
-    currentSuggestion,
   }
 }

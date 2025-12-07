@@ -15,7 +15,9 @@ Guidelines:
 - Focus on epistemic value - what question is being investigated?
 - Frame it as a problem to solve, question to answer, or tension to resolve
 - Be specific to the content, not generic
-- Keep it concise but meaningful`
+- Keep it concise but meaningful
+
+IMPORTANT: The response language MUST match the user’s language.`
 
 export async function reconstructProblem(
   content: string,
@@ -33,9 +35,9 @@ export async function reconstructProblem(
 
 Content: ${content}
 
-Generate 3 different problem statement framings for this note. Each should capture a different angle or perspective on what problem/question this note addresses.
+Generate 2 different problem statement framings for this note. Each should capture a different angle or perspective on what problem/question this note addresses.
 
-Respond with exactly 3 problem statements, one per line, without numbering or bullet points.`
+Respond with exactly 2 problem statements, one per line, without numbering or bullet points.`
     : `Title: ${title}
 
 Content: ${content}
@@ -55,8 +57,8 @@ Generate a single problem statement for this note that captures what problem, qu
       .filter((line) => line.length > 0)
 
     return {
-      suggestion: lines[0] || '',
-      alternatives: lines.slice(1),
+      suggestion: '',
+      alternatives: lines,
     }
   }
 

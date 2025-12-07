@@ -52,7 +52,7 @@ export const useTabsStore = create<TabsStore>()(
         const existingTab = state.tabs.find((t) => t.noteId === noteId)
         if (existingTab) {
           if (activate) {
-            set({ activeTabId: existingTab.id })
+            set({ activeTabId: existingTab.id, showListView: false })
           }
           return existingTab.id
         }

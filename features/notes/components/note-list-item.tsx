@@ -21,6 +21,7 @@ export function NoteListItem({ note }: NoteListItemProps) {
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault()
+    openTab(note.id, note.title || 'Untitled', true)
     router.push(`/notes/${note.id}`)
   }
 

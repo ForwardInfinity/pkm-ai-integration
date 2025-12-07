@@ -18,6 +18,7 @@ import { sidebarNavigation } from "@/config/navigation"
 import { Logo } from "@/components/shared/logo"
 import { TooltipIconButton } from "@/components/shared/tooltip-icon-button"
 import { UserNav } from "@/components/layout/user-nav"
+import { SidebarPinnedNotes } from "@/components/layout/sidebar-pinned-notes"
 import { SidebarNoteList } from "@/components/layout/sidebar-note-list"
 import { LAYOUT_CONSTANTS } from "@/types/layout.types"
 
@@ -102,6 +103,9 @@ export function AppSidebar({ isCollapsed, email, onToggle }: AppSidebarProps) {
           )}
           aria-label="Sidebar navigation"
         >
+          {/* Pinned Notes Section */}
+          <SidebarPinnedNotes isCollapsed={isCollapsed} />
+
           {/* Collapsible Notes Section - only when expanded */}
           {!isCollapsed && <SidebarNoteList />}
 

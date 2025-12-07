@@ -295,7 +295,7 @@ class SyncQueue {
       // Update TanStack Query cache - silently update with server data
       const queryClient = getBrowserQueryClient()
       if (queryClient) {
-        // Update list cache entry
+        // Update list cache entry - preserve is_pinned and tags (not sent in update)
         queryClient.setQueryData<NoteListItem[]>(noteKeys.lists(), (old) => {
           if (!old) return old
           return old.map(n => n.id === serverNoteId ? {
@@ -304,6 +304,7 @@ class SyncQueue {
             problem: updated.problem,
             updated_at: updated.updated_at,
             word_count: updated.word_count,
+            // Preserve is_pinned and tags from existing cache (these aren't in update payload)
           } : n)
         })
         // Update detail cache

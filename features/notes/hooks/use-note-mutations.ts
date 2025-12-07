@@ -86,11 +86,13 @@ export function useUpdateNote() {
     onMutate: async (newData) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: noteKeys.detail(newData.id) })
+      await queryClient.cancelQueries({ queryKey: noteKeys.lists() })
 
-      // Snapshot the previous value
+      // Snapshot previous values
       const previousNote = queryClient.getQueryData<Note>(noteKeys.detail(newData.id))
+      const previousNotes = queryClient.getQueryData<NoteListItem[]>(noteKeys.lists())
 
-      // Optimistically update the cache
+      // Optimistically update detail cache
       if (previousNote) {
         queryClient.setQueryData<Note>(noteKeys.detail(newData.id), {
           ...previousNote,
@@ -99,13 +101,29 @@ export function useUpdateNote() {
         })
       }
 
-      // Return context with the previous value
-      return { previousNote }
+      // Optimistically update list cache (for sidebar reactivity)
+      queryClient.setQueryData<NoteListItem[]>(noteKeys.lists(), (old) => {
+        if (!old) return old
+        return old.map(n => n.id === newData.id ? {
+          ...n,
+          ...('title' in newData && { title: newData.title }),
+          ...('problem' in newData && { problem: newData.problem }),
+          ...('is_pinned' in newData && { is_pinned: newData.is_pinned }),
+          ...('tags' in newData && { tags: newData.tags }),
+          ...('word_count' in newData && { word_count: newData.word_count }),
+        } : n)
+      })
+
+      // Return context with previous values for rollback
+      return { previousNote, previousNotes }
     },
     onError: (_err, newData, context) => {
       // Rollback on error
       if (context?.previousNote) {
         queryClient.setQueryData(noteKeys.detail(newData.id), context.previousNote)
+      }
+      if (context?.previousNotes) {
+        queryClient.setQueryData(noteKeys.lists(), context.previousNotes)
       }
     },
     onSettled: (data) => {
@@ -121,6 +139,8 @@ export function useUpdateNote() {
             problem: data.problem,
             updated_at: data.updated_at,
             word_count: data.word_count,
+            is_pinned: data.is_pinned,
+            tags: data.tags || [],
           } : n)
         })
       }

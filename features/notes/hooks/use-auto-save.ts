@@ -74,28 +74,32 @@ export function useAutoSave({ noteId, onExternalChange }: UseAutoSaveOptions) {
         queryClient.setQueryData<NoteListItem[]>(noteKeys.lists(), (old) => {
           if (!old) return old
 
-          const updatedEntry: NoteListItem = {
-            id: effectiveId,
-            title: localNote.title,
-            problem: localNote.problem,
-            updated_at: new Date().toISOString(),
-            word_count: localNote.wordCount,
-            tags: [],
-            is_pinned: false,
-          }
-
           // If we have a server ID, filter out any lingering temp entries
           let filtered = old
           if (serverId) {
             filtered = old.filter(n => n.id !== noteId)
           }
 
+          // Find existing note to preserve is_pinned and tags
           const existingIndex = filtered.findIndex(n => n.id === effectiveId)
+          const existingNote = existingIndex >= 0 ? filtered[existingIndex] : null
+
+          const updatedEntry: NoteListItem = {
+            id: effectiveId,
+            title: localNote.title,
+            problem: localNote.problem,
+            updated_at: new Date().toISOString(),
+            word_count: localNote.wordCount,
+            // Preserve existing values instead of hardcoding
+            tags: existingNote?.tags ?? [],
+            is_pinned: existingNote?.is_pinned ?? false,
+          }
+
           if (existingIndex >= 0) {
             // Update existing - move to top (most recently updated)
             const updated = [...filtered]
-            const existingNote = updated.splice(existingIndex, 1)[0]
-            return [{ ...existingNote, ...updatedEntry }, ...updated]
+            updated.splice(existingIndex, 1)
+            return [updatedEntry, ...updated]
           } else {
             // New note - add to top
             return [updatedEntry, ...filtered]

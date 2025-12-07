@@ -171,7 +171,7 @@ export function TabBar() {
       {/* Tabs container */}
       <div
         ref={scrollRef}
-        className="flex flex-1 overflow-x-auto scrollbar-none"
+        className="flex overflow-x-auto scrollbar-none"
         role="tablist"
       >
         {tabs.map((tab) => (
@@ -184,6 +184,17 @@ export function TabBar() {
             onMiddleClick={() => handleCloseTab(tab.id)}
           />
         ))}
+
+        {/* New tab button - right next to last tab */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 shrink-0 rounded-none"
+          onClick={handleNewTab}
+          aria-label="New tab"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Scroll right button */}
@@ -197,17 +208,6 @@ export function TabBar() {
           <ChevronRight className="h-4 w-4" />
         </Button>
       )}
-
-      {/* New tab button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-9 w-9 shrink-0 rounded-none border-l"
-        onClick={handleNewTab}
-        aria-label="New tab"
-      >
-        <Plus className="h-4 w-4" />
-      </Button>
     </div>
   )
 }

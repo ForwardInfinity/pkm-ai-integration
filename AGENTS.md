@@ -8,7 +8,13 @@ Note-taking system implementing evolutionary epistemology (Popper/Deutsch)—kno
 npm run dev      # Dev server with Turbopack (localhost:3000)
 npm run build    # Production build — MUST pass before completing work
 npm run lint     # ESLint — MUST pass before completing work
+npm run test     # Vitest — MUST pass
 ```
+
+## Development Standards
+- Propose a plan before making large changes
+- Write tests for new functionality
+- Use TypeScript strict mode
 
 ## Tech Stack
 

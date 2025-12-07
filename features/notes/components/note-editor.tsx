@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Loader2, AlertCircle, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { NoteActionsDropdown } from './note-actions-dropdown'
 import type { LocalNote } from '@/lib/local-db'
 
 interface NoteEditorProps {
@@ -212,7 +213,18 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
     <div className="flex h-full flex-col">
       {/* Editor content */}
       <ScrollArea className="flex-1">
-        <div className="max-w-3xl mx-auto px-8 pt-12 pb-12">
+        <div className="relative max-w-3xl mx-auto px-8 pt-12 pb-12">
+          {/* Actions dropdown - top right */}
+          {!isNewNote && note && (
+            <div className="absolute top-4 right-4">
+              <NoteActionsDropdown
+                noteId={note.id}
+                title={title}
+                isPinned={note.is_pinned}
+              />
+            </div>
+          )}
+
           {/* Title input - large and prominent */}
           <input
             type="text"

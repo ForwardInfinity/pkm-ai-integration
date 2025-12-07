@@ -4,6 +4,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { Note, UpdateNoteInput, CreateNoteInput, NoteListItem } from '../types'
 import { noteKeys } from './use-notes'
+import { trashKeys } from '@/features/trash/hooks'
+import type { TrashNoteItem } from '@/features/trash/types'
 
 // Update note params include the ID
 interface UpdateNoteParams extends UpdateNoteInput {
@@ -157,21 +159,58 @@ export function useCreateNote() {
 }
 
 /**
- * Hook to soft-delete a note
+ * Hook to soft-delete a note with optimistic updates
  */
 export function useDeleteNote() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: deleteNote,
+    onMutate: async (id) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: noteKeys.lists() })
+      await queryClient.cancelQueries({ queryKey: trashKeys.list() })
+
+      // Snapshot previous states for rollback
+      const previousNotes = queryClient.getQueryData<NoteListItem[]>(noteKeys.lists())
+      const previousTrash = queryClient.getQueryData<TrashNoteItem[]>(trashKeys.list())
+
+      // Find the note being deleted
+      const deletedNote = previousNotes?.find((n) => n.id === id)
+
+      // Optimistically remove from notes list
+      queryClient.setQueryData<NoteListItem[]>(noteKeys.lists(), (old) =>
+        old?.filter((n) => n.id !== id)
+      )
+
+      // Optimistically add to trash
+      if (deletedNote) {
+        const trashItem: TrashNoteItem = {
+          id: deletedNote.id,
+          title: deletedNote.title,
+          problem: deletedNote.problem,
+          word_count: deletedNote.word_count,
+          deleted_at: new Date().toISOString(),
+        }
+        queryClient.setQueryData<TrashNoteItem[]>(trashKeys.list(), (old) =>
+          old ? [trashItem, ...old] : [trashItem]
+        )
+      }
+
+      return { previousNotes, previousTrash }
+    },
+    onError: (_err, _id, context) => {
+      // Rollback on error
+      if (context?.previousNotes) {
+        queryClient.setQueryData(noteKeys.lists(), context.previousNotes)
+      }
+      if (context?.previousTrash) {
+        queryClient.setQueryData(trashKeys.list(), context.previousTrash)
+      }
+    },
     onSuccess: (_, id) => {
       // Remove from detail cache
       queryClient.removeQueries({ queryKey: noteKeys.detail(id) })
-      // Remove from list cache directly (no invalidation/refetch)
-      queryClient.setQueryData<NoteListItem[]>(noteKeys.lists(), (old) => {
-        if (!old) return old
-        return old.filter(n => n.id !== id)
-      })
     },
   })
 }

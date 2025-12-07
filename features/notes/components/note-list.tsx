@@ -1,14 +1,18 @@
 'use client'
 
-import { useMemo } from 'react'
-import { Pin, Loader2, FileText, Sparkles } from 'lucide-react'
+import { useMemo, useState, useCallback } from 'react'
+import { Pin, Loader2, FileText, Sparkles, CheckSquare } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
 import { useNotes } from '../hooks'
 import { NoteListItem } from './note-list-item'
 import { EmptyState } from './empty-state'
+import { SelectionToolbar } from './selection-toolbar'
 
 export function NoteList() {
   const { data: notes, isLoading, error } = useNotes()
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const { pinnedNotes, unpinnedNotes, totalCount } = useMemo(() => {
     if (!notes) return { pinnedNotes: [], unpinnedNotes: [], totalCount: 0 }
@@ -19,6 +23,33 @@ export function NoteList() {
       totalCount: notes.length,
     }
   }, [notes])
+
+  const handleSelectionChange = useCallback((id: string, selected: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (selected) {
+        next.add(id)
+      } else {
+        next.delete(id)
+      }
+      return next
+    })
+  }, [])
+
+  const handleSelectAll = useCallback(() => {
+    if (notes) {
+      setSelectedIds(new Set(notes.map((n) => n.id)))
+    }
+  }, [notes])
+
+  const handleDeselectAll = useCallback(() => {
+    setSelectedIds(new Set())
+  }, [])
+
+  const handleCancelSelection = useCallback(() => {
+    setSelectionMode(false)
+    setSelectedIds(new Set())
+  }, [])
 
   if (isLoading) {
     return (
@@ -74,6 +105,17 @@ export function NoteList() {
                   </p>
                 </div>
               </div>
+              {totalCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => selectionMode ? handleCancelSelection() : setSelectionMode(true)}
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  <CheckSquare className="h-3.5 w-3.5" />
+                  {selectionMode ? 'Cancel' : 'Select'}
+                </Button>
+              )}
             </div>
           </div>
         </header>
@@ -102,7 +144,13 @@ export function NoteList() {
                       className="animate-in fade-in slide-in-from-bottom-1 duration-300"
                       style={{ animationDelay: `${index * 50}ms` }}
                     >
-                      <NoteListItem note={note} isPinned />
+                      <NoteListItem
+                        note={note}
+                        isPinned
+                        selectionMode={selectionMode}
+                        isSelected={selectedIds.has(note.id)}
+                        onSelectionChange={handleSelectionChange}
+                      />
                     </div>
                   ))}
                 </div>
@@ -131,7 +179,12 @@ export function NoteList() {
                     className="animate-in fade-in slide-in-from-bottom-1 duration-300"
                     style={{ animationDelay: `${(pinnedNotes.length + index) * 30}ms` }}
                   >
-                    <NoteListItem note={note} />
+                    <NoteListItem
+                      note={note}
+                      selectionMode={selectionMode}
+                      isSelected={selectedIds.has(note.id)}
+                      onSelectionChange={handleSelectionChange}
+                    />
                   </div>
                 ))}
               </div>
@@ -142,6 +195,17 @@ export function NoteList() {
           <div className="h-8" />
         </main>
       </div>
+
+      {/* Selection toolbar */}
+      {selectionMode && selectedIds.size > 0 && (
+        <SelectionToolbar
+          selectedIds={selectedIds}
+          totalCount={totalCount}
+          onSelectAll={handleSelectAll}
+          onDeselectAll={handleDeselectAll}
+          onCancel={handleCancelSelection}
+        />
+      )}
     </ScrollArea>
   )
 }

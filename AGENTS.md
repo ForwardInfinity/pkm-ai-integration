@@ -114,7 +114,7 @@ See `types/database.types.ts` for full schema and `supabase/migrations/` for SQL
 
 ## Additional Context
 
-- Product vision & user stories: `PRD.md`
+- Product vision & user stories: `@PRD.md`
 - Database migrations: `supabase/migrations/`
 - Editor implementation: `components/editor/markdown-editor.tsx`
 - Note editor with local-first: `features/notes/components/note-editor.tsx`

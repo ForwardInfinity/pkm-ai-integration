@@ -101,24 +101,16 @@ class SyncQueue {
   }
 
   async enqueue(noteId: string, data: Partial<LocalNote>): Promise<void> {
-    // Serialize operations for the same noteId to prevent race conditions
-    const existingLock = this.enqueueLocks.get(noteId)
-    if (existingLock) {
-      await existingLock
-    }
-
-    // Create a new lock for this operation
-    let resolveLock: () => void
-    const lockPromise = new Promise<void>((resolve) => {
-      resolveLock = resolve
-    })
-    this.enqueueLocks.set(noteId, lockPromise)
-
+    // Chain operations for the same noteId to prevent race conditions
+    const prev = this.enqueueLocks.get(noteId) ?? Promise.resolve()
+    const current = prev.catch(() => {}).then(() => this.enqueueInternal(noteId, data))
+    this.enqueueLocks.set(noteId, current)
     try {
-      await this.enqueueInternal(noteId, data)
+      await current
     } finally {
-      this.enqueueLocks.delete(noteId)
-      resolveLock!()
+      if (this.enqueueLocks.get(noteId) === current) {
+        this.enqueueLocks.delete(noteId)
+      }
     }
   }
 

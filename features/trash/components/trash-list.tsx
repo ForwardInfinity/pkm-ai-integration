@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Trash2, Loader2, AlertTriangle } from 'lucide-react'
+import { useState, useCallback } from 'react'
+import { Trash2, Loader2, AlertTriangle, CheckSquare } from 'lucide-react'
 import { toast } from 'sonner'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
@@ -19,11 +19,41 @@ import {
 import { useTrashNotes, useEmptyTrash } from '../hooks'
 import { TrashListItem } from './trash-list-item'
 import { TrashEmptyState } from './trash-empty-state'
+import { TrashSelectionToolbar } from './trash-selection-toolbar'
 
 export function TrashList() {
   const { data: notes, isLoading, error } = useTrashNotes()
   const emptyTrashMutation = useEmptyTrash()
   const [isEmptying, setIsEmptying] = useState(false)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const handleSelectionChange = useCallback((id: string, selected: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (selected) {
+        next.add(id)
+      } else {
+        next.delete(id)
+      }
+      return next
+    })
+  }, [])
+
+  const handleSelectAll = useCallback(() => {
+    if (notes) {
+      setSelectedIds(new Set(notes.map((n) => n.id)))
+    }
+  }, [notes])
+
+  const handleDeselectAll = useCallback(() => {
+    setSelectedIds(new Set())
+  }, [])
+
+  const handleCancelSelection = useCallback(() => {
+    setSelectionMode(false)
+    setSelectedIds(new Set())
+  }, [])
 
   const handleEmptyTrash = async () => {
     setIsEmptying(true)
@@ -95,42 +125,56 @@ export function TrashList() {
                 </div>
               </div>
 
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={isEmptying}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10 hover:border-destructive/50"
-                  >
-                    {isEmptying ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="mr-2 h-4 w-4" />
-                    )}
-                    Empty Trash
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Empty trash?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete all {notes.length}{' '}
-                      {notes.length === 1 ? 'note' : 'notes'} in trash. This action
-                      cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleEmptyTrash}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Empty trash
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => selectionMode ? handleCancelSelection() : setSelectionMode(true)}
+                  className="h-8 gap-1.5 text-xs"
+                >
+                  <CheckSquare className="h-3.5 w-3.5" />
+                  {selectionMode ? 'Cancel' : 'Select'}
+                </Button>
+
+                {!selectionMode && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isEmptying}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 hover:border-destructive/50"
+                      >
+                        {isEmptying ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="mr-2 h-4 w-4" />
+                        )}
+                        Empty Trash
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Empty trash?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete all {notes.length}{' '}
+                          {notes.length === 1 ? 'note' : 'notes'} in trash. This action
+                          cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleEmptyTrash}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Empty trash
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -143,13 +187,29 @@ export function TrashList() {
                 className="animate-in fade-in slide-in-from-bottom-1 duration-300"
                 style={{ animationDelay: `${index * 30}ms` }}
               >
-                <TrashListItem note={note} />
+                <TrashListItem
+                  note={note}
+                  selectionMode={selectionMode}
+                  isSelected={selectedIds.has(note.id)}
+                  onSelectionChange={handleSelectionChange}
+                />
               </div>
             ))}
           </div>
           <div className="h-8" />
         </main>
       </div>
+
+      {/* Selection toolbar */}
+      {selectionMode && selectedIds.size > 0 && (
+        <TrashSelectionToolbar
+          selectedIds={selectedIds}
+          totalCount={notes.length}
+          onSelectAll={handleSelectAll}
+          onDeselectAll={handleDeselectAll}
+          onCancel={handleCancelSelection}
+        />
+      )}
     </ScrollArea>
   )
 }

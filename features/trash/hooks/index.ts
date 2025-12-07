@@ -4,3 +4,5 @@ export {
   usePermanentDeleteNote,
   useEmptyTrash,
 } from './use-trash-mutations'
+export { useBulkRestoreNotes } from './use-bulk-restore-notes'
+export { useBulkPermanentDelete } from './use-bulk-permanent-delete'

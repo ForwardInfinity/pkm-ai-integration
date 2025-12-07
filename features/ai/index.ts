@@ -1,4 +1,4 @@
 // AI feature public exports
-// Components, hooks, and types will be exported here as they are implemented
-
-export {};
+export { reconstructProblem } from './actions/reconstruct-problem'
+export { useReconstructProblem } from './hooks'
+export type { ProblemReconstructionResult } from './types'

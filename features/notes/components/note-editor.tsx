@@ -11,9 +11,10 @@ import { getNoteLocally } from '@/lib/local-db/note-cache'
 import { getSyncQueue } from '@/lib/local-db/sync-queue'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Loader2, AlertCircle, Sparkles } from 'lucide-react'
+import { Loader2, AlertCircle, Sparkles, Check, X, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NoteActionsDropdown } from './note-actions-dropdown'
+import { useReconstructProblem } from '@/features/ai'
 import type { LocalNote } from '@/lib/local-db'
 
 interface NoteEditorProps {
@@ -47,6 +48,17 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   const [problem, setProblem] = useState('')
   const [content, setContent] = useState('')
   const [isRecovering, setIsRecovering] = useState(true)
+
+  // AI problem reconstruction
+  const {
+    isLoading: isReconstructing,
+    currentSuggestion,
+    reconstruct,
+    fetchAlternatives,
+    nextAlternative,
+    reset: resetAI,
+    result: aiResult,
+  } = useReconstructProblem()
 
   // Auto-save hook with tab sync
   const { save, getServerId } = useAutoSave({
@@ -160,17 +172,38 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
     }
   }
 
-  // Handle problem change - instant save
-  const handleProblemChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  // Handle reconstruct problem button click
+  const handleReconstructProblem = async () => {
+    if (!content.trim() && !title.trim()) return
+    await reconstruct(content, title)
+  }
+
+  // Accept AI suggestion
+  const handleAcceptSuggestion = () => {
+    if (currentSuggestion) {
+      setProblem(currentSuggestion)
+      save({ problem: currentSuggestion })
+      resetAI()
+    }
+  }
+
+  // Dismiss current suggestion and try alternative
+  const handleDismissSuggestion = async () => {
+    const next = nextAlternative()
+    if (!next) {
+      // No more alternatives, fetch new ones
+      await fetchAlternatives(content, title)
+    }
+  }
+
+  // Clear AI suggestion when user types manually
+  const handleProblemChangeWithAIClear = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newProblem = e.target.value
     setProblem(newProblem)
     save({ problem: newProblem || null })
-  }
-
-  // Handle reconstruct problem button click (placeholder for AI integration)
-  const handleReconstructProblem = () => {
-    // TODO: Wire up AI to reconstruct problem from content
-    console.log('Reconstruct problem clicked - AI integration coming soon')
+    if (currentSuggestion) {
+      resetAI()
+    }
   }
 
   // Handle content save from editor - instant save
@@ -237,40 +270,111 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
 
           {/* Problem field - subtle, inline feel */}
           <div className="relative mb-8 pb-2 border-b border-border/40 group hover:border-border/60 focus-within:border-border/60 transition-colors">
-            <textarea
-              value={problem}
-              onChange={handleProblemChange}
-              placeholder="What problem does this solve?"
-              rows={1}
-              spellCheck={false}
-              style={{ resize: 'none' }}
-              className={cn(
-                "w-full bg-transparent",
-                "text-base text-muted-foreground",
-                "border-none outline-none",
-                "placeholder:text-muted-foreground/40 placeholder:italic",
-                "focus:ring-0 focus:text-foreground/70",
-                "transition-colors duration-200",
-                "pr-28"
-              )}
-            />
-            {/* Reconstruct button - inside field, bottom right */}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleReconstructProblem}
-              className={cn(
-                "absolute right-0 bottom-2",
-                "h-6 px-2",
-                "text-xs text-muted-foreground/50 hover:text-foreground hover:bg-muted/50",
-                "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
-                "transition-opacity duration-200"
-              )}
-            >
-              <Sparkles className="h-3 w-3 mr-1" />
-              Reconstruct
-            </Button>
+            {currentSuggestion ? (
+              // AI suggestion mode
+              <div className="space-y-2">
+                <textarea
+                  value={currentSuggestion}
+                  onChange={handleProblemChangeWithAIClear}
+                  rows={2}
+                  spellCheck={false}
+                  style={{ resize: 'none' }}
+                  className={cn(
+                    "w-full bg-primary/5 rounded-md p-2",
+                    "text-base text-foreground/80",
+                    "border border-primary/20 outline-none",
+                    "focus:ring-1 focus:ring-primary/30",
+                    "transition-colors duration-200"
+                  )}
+                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAcceptSuggestion}
+                    className="h-7 px-2 text-xs text-green-600 hover:text-green-700 hover:bg-green-50"
+                  >
+                    <Check className="h-3 w-3 mr-1" />
+                    Accept
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDismissSuggestion}
+                    disabled={isReconstructing}
+                    className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  >
+                    {isReconstructing ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                    )}
+                    Try Another
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetAI}
+                    className="h-7 px-2 text-xs text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Dismiss
+                  </Button>
+                  {aiResult?.alternatives && aiResult.alternatives.length > 0 && (
+                    <span className="text-xs text-muted-foreground/50 ml-auto">
+                      {aiResult.alternatives.length} more suggestions
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              // Normal mode
+              <>
+                <textarea
+                  value={problem}
+                  onChange={handleProblemChangeWithAIClear}
+                  placeholder="What problem does this solve?"
+                  rows={1}
+                  spellCheck={false}
+                  style={{ resize: 'none' }}
+                  className={cn(
+                    "w-full bg-transparent",
+                    "text-base text-muted-foreground",
+                    "border-none outline-none",
+                    "placeholder:text-muted-foreground/40 placeholder:italic",
+                    "focus:ring-0 focus:text-foreground/70",
+                    "transition-colors duration-200",
+                    "pr-28"
+                  )}
+                />
+                {/* Reconstruct button - inside field, bottom right */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleReconstructProblem}
+                  disabled={isReconstructing || (!content.trim() && !title.trim())}
+                  className={cn(
+                    "absolute right-0 bottom-2",
+                    "h-6 px-2",
+                    "text-xs text-muted-foreground/50 hover:text-foreground hover:bg-muted/50",
+                    "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+                    "transition-opacity duration-200",
+                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                  )}
+                >
+                  {isReconstructing ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3 w-3 mr-1" />
+                  )}
+                  Reconstruct
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Content editor */}

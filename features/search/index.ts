@@ -1,4 +1,2 @@
-// Search feature public exports
-// Components, hooks, and types will be exported here as they are implemented
-
-export {};
+export * from './components'
+export * from './hooks'

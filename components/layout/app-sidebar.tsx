@@ -20,6 +20,7 @@ import { TooltipIconButton } from "@/components/shared/tooltip-icon-button"
 import { UserNav } from "@/components/layout/user-nav"
 import { SidebarPinnedNotes } from "@/components/layout/sidebar-pinned-notes"
 import { SidebarNoteList } from "@/components/layout/sidebar-note-list"
+import { SearchNotes } from "@/features/search"
 import { LAYOUT_CONSTANTS } from "@/types/layout.types"
 
 interface AppSidebarProps {
@@ -93,6 +94,13 @@ export function AppSidebar({ isCollapsed, email, onToggle }: AppSidebarProps) {
           </Tooltip>
         </TooltipProvider>
       </div>
+
+      {/* Search - only when expanded */}
+      {!isCollapsed && (
+        <div className="px-4">
+          <SearchNotes />
+        </div>
+      )}
 
       {/* Navigation Links */}
       <ScrollArea className="flex-1 px-2">

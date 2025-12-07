@@ -87,6 +87,18 @@ export interface NoteListItem {
   word_count: number;
 }
 
+// Text search result (for basic text matching)
+export interface TextSearchResult {
+  id: string;
+  title: string;
+  problem: string | null;
+  snippet: string;
+  matchField: 'title' | 'problem' | 'content';
+  matchIndex: number;
+  queryLength: number;
+  updatedAt: string;
+}
+
 // Conflict with related notes (for conflict resolution UI)
 export interface ConflictWithNotes extends Conflict {
   note_a: Note;

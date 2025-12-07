@@ -2,7 +2,6 @@ import {
   FileText,
   AlertTriangle,
   Network,
-  Search,
   Trash2,
   Settings,
 } from "lucide-react"
@@ -24,11 +23,6 @@ export const sidebarNavigation: NavigationItem[] = [
     title: "Problem Graph",
     href: "/graph",
     icon: Network,
-  },
-  {
-    title: "Search",
-    href: "/search",
-    icon: Search,
   },
   {
     title: "Trash",

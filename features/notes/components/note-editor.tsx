@@ -212,7 +212,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
     <div className="flex h-full flex-col">
       {/* Editor content */}
       <ScrollArea className="flex-1">
-        <div className="max-w-3xl mx-auto px-8 py-12">
+        <div className="max-w-3xl mx-auto px-8 pt-12 pb-12">
           {/* Title input - large and prominent */}
           <input
             type="text"
@@ -220,7 +220,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
             onChange={handleTitleChange}
             placeholder="Untitled"
             spellCheck={false}
-            className="w-full mb-4 text-5xl font-bold leading-[1.1] tracking-tight bg-transparent border-none outline-none placeholder:text-muted-foreground/30 focus:ring-0"
+            className="w-full mb-6 text-4xl md:text-5xl font-bold leading-tight tracking-tight bg-transparent border-none outline-none placeholder:text-muted-foreground/30 focus:ring-0"
           />
 
           {/* Problem field - subtle, inline feel */}

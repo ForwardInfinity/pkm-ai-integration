@@ -2,12 +2,17 @@
 
 import { inngest } from '@/lib/inngest/client'
 
+export type TriggerEmbeddingResult = {
+  success: boolean
+  error?: string
+}
+
 export async function triggerEmbeddingGeneration(note: {
   id: string
   title: string
   problem: string | null
   content: string
-}) {
+}): Promise<TriggerEmbeddingResult> {
   try {
     await inngest.send({
       name: 'note/embedding.requested',
@@ -18,8 +23,10 @@ export async function triggerEmbeddingGeneration(note: {
         content: note.content,
       },
     })
-    console.log('[Inngest] Embedding event sent for note:', note.id)
+    return { success: true }
   } catch (error) {
-    console.error('[Inngest] Failed to send embedding event:', error)
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[Inngest] Failed to send embedding event:', message)
+    return { success: false, error: message }
   }
 }

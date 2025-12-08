@@ -4,9 +4,7 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { embed } from 'ai'
 import type { Database } from '@/types/database.types'
 
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY!,
-})
+const MAX_EMBEDDING_CHARS = 8000
 
 export const generateNoteEmbedding = inngest.createFunction(
   {
@@ -19,13 +17,21 @@ export const generateNoteEmbedding = inngest.createFunction(
   async ({ event, step }) => {
     const { noteId, content, title, problem } = event.data
 
-    const textToEmbed = [title, problem, content].filter(Boolean).join('\n\n')
+    const rawText = [title, problem, content].filter(Boolean).join('\n\n')
+    const textToEmbed = rawText.slice(0, MAX_EMBEDDING_CHARS)
 
     if (!textToEmbed.trim()) {
       return { skipped: true, reason: 'No content to embed' }
     }
 
     const { embedding } = await step.run('generate-embedding', async () => {
+      const apiKey = process.env.OPENROUTER_API_KEY
+      if (!apiKey) {
+        throw new Error('OPENROUTER_API_KEY environment variable is not set')
+      }
+
+      const openrouter = createOpenRouter({ apiKey })
+
       return embed({
         model: openrouter.textEmbeddingModel('openai/text-embedding-3-small'),
         value: textToEmbed,
@@ -44,7 +50,7 @@ export const generateNoteEmbedding = inngest.createFunction(
 
       const { error } = await supabase
         .from('notes')
-        .update({ embedding: JSON.stringify(embedding) })
+        .update({ embedding: embedding as unknown as string })
         .eq('id', noteId)
 
       if (error) {

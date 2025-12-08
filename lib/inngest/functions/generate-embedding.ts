@@ -1,4 +1,5 @@
 import { inngest } from '../client'
+import { NonRetriableError } from 'inngest'
 import { createClient } from '@supabase/supabase-js'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { embed } from 'ai'
@@ -17,6 +18,18 @@ export const generateNoteEmbedding = inngest.createFunction(
   async ({ event, step }) => {
     const { noteId, content, title, problem } = event.data
 
+    // Validate environment variables early (fail fast, no retries for config errors)
+    const apiKey = process.env.OPENROUTER_API_KEY
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!apiKey) {
+      throw new NonRetriableError('OPENROUTER_API_KEY environment variable is not set')
+    }
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new NonRetriableError('Missing Supabase environment variables')
+    }
+
     const rawText = [title, problem, content].filter(Boolean).join('\n\n')
     const textToEmbed = rawText.slice(0, MAX_EMBEDDING_CHARS)
 
@@ -25,11 +38,6 @@ export const generateNoteEmbedding = inngest.createFunction(
     }
 
     const { embedding } = await step.run('generate-embedding', async () => {
-      const apiKey = process.env.OPENROUTER_API_KEY
-      if (!apiKey) {
-        throw new Error('OPENROUTER_API_KEY environment variable is not set')
-      }
-
       const openrouter = createOpenRouter({ apiKey })
 
       return embed({
@@ -39,13 +47,6 @@ export const generateNoteEmbedding = inngest.createFunction(
     })
 
     await step.run('store-embedding', async () => {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-      if (!supabaseUrl || !supabaseServiceKey) {
-        throw new Error('Missing Supabase environment variables')
-      }
-
       const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey)
 
       const { error } = await supabase

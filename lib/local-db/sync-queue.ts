@@ -258,13 +258,19 @@ class SyncQueue {
         queryClient.setQueryData<Note>(noteKeys.detail(created.id), created)
       }
 
-      // Trigger embedding generation for new note
+      // Trigger embedding generation for new note (best-effort, does not block sync)
       triggerEmbeddingGeneration({
         id: created.id,
         title: created.title,
         problem: created.problem,
         content: created.content,
-      }).catch(console.error)
+      })
+        .then((res) => {
+          if (!res.success) {
+            console.error('[Embedding] Failed to enqueue for new note:', res.error)
+          }
+        })
+        .catch(console.error)
     } else {
       // Update existing note
       let serverNoteId = item.noteId
@@ -320,13 +326,19 @@ class SyncQueue {
         queryClient.setQueryData<Note>(noteKeys.detail(serverNoteId), updated)
       }
 
-      // Trigger embedding regeneration for updated note
+      // Trigger embedding regeneration for updated note (best-effort, does not block sync)
       triggerEmbeddingGeneration({
         id: updated.id,
         title: updated.title,
         problem: updated.problem,
         content: updated.content,
-      }).catch(console.error)
+      })
+        .then((res) => {
+          if (!res.success) {
+            console.error('[Embedding] Failed to enqueue for updated note:', res.error)
+          }
+        })
+        .catch(console.error)
     }
   }
 

@@ -5,8 +5,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { MarkdownEditor } from '@/components/editor'
+import { Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface NoteContent {
@@ -20,6 +24,8 @@ interface CleanNotePreviewModalProps {
   onOpenChange: (open: boolean) => void
   original: NoteContent
   cleaned: NoteContent
+  onAccept: () => void
+  onReject: () => void
 }
 
 function NotePreviewColumn({
@@ -59,12 +65,16 @@ function NotePreviewColumn({
             </div>
           )}
 
-          {/* Content */}
-          <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none whitespace-pre-wrap">
-            {note.content || (
-              <span className="text-muted-foreground/40 italic">No content</span>
-            )}
-          </div>
+          {/* Content - rendered as markdown */}
+          {note.content ? (
+            <MarkdownEditor
+              content={note.content}
+              editable={false}
+              className="min-h-0"
+            />
+          ) : (
+            <div className="text-muted-foreground/40 italic">No content</div>
+          )}
         </div>
       </ScrollArea>
     </div>
@@ -76,7 +86,19 @@ export function CleanNotePreviewModal({
   onOpenChange,
   original,
   cleaned,
+  onAccept,
+  onReject,
 }: CleanNotePreviewModalProps) {
+  const handleAccept = () => {
+    onAccept()
+    onOpenChange(false)
+  }
+
+  const handleReject = () => {
+    onReject()
+    onOpenChange(false)
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl h-[80vh] flex flex-col p-0 gap-0">
@@ -95,6 +117,17 @@ export function CleanNotePreviewModal({
             <NotePreviewColumn label="Cleaned" note={cleaned} variant="cleaned" />
           </div>
         </div>
+
+        <DialogFooter className="px-6 py-4 border-t shrink-0">
+          <Button variant="outline" onClick={handleReject}>
+            <X className="h-4 w-4 mr-2" />
+            Reject
+          </Button>
+          <Button onClick={handleAccept}>
+            <Check className="h-4 w-4 mr-2" />
+            Accept
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

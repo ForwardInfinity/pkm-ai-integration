@@ -563,6 +563,8 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
             problem: cleanResult.problem,
             content: cleanResult.content,
           }}
+          onAccept={handleAcceptClean}
+          onReject={rejectClean}
         />
       )}
 

@@ -574,7 +574,10 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
 
       {/* Clean Note Error Toast */}
       {cleanError && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-destructive/90 text-destructive-foreground rounded-lg shadow-lg text-sm animate-in slide-in-from-bottom-4 fade-in">
+        <div
+          role="alert"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-destructive/90 text-destructive-foreground rounded-lg shadow-lg text-sm animate-in slide-in-from-bottom-4 fade-in"
+        >
           {cleanError}
         </div>
       )}

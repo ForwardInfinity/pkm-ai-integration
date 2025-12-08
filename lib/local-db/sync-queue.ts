@@ -9,6 +9,7 @@ import {
 import { getBrowserQueryClient } from '@/app/providers'
 import { noteKeys } from '@/features/notes/hooks/use-notes'
 import type { NoteListItem, Note } from '@/features/notes/types'
+import { triggerEmbeddingGeneration } from '@/features/notes/actions/trigger-embedding'
 
 const SYNC_DEBOUNCE_MS = 2000
 const MAX_RETRIES = 3
@@ -256,6 +257,14 @@ class SyncQueue {
         // Set detail cache for the new note
         queryClient.setQueryData<Note>(noteKeys.detail(created.id), created)
       }
+
+      // Trigger embedding generation for new note
+      triggerEmbeddingGeneration({
+        id: created.id,
+        title: created.title,
+        problem: created.problem,
+        content: created.content,
+      }).catch(console.error)
     } else {
       // Update existing note
       let serverNoteId = item.noteId
@@ -310,6 +319,14 @@ class SyncQueue {
         // Update detail cache
         queryClient.setQueryData<Note>(noteKeys.detail(serverNoteId), updated)
       }
+
+      // Trigger embedding regeneration for updated note
+      triggerEmbeddingGeneration({
+        id: updated.id,
+        title: updated.title,
+        problem: updated.problem,
+        content: updated.content,
+      }).catch(console.error)
     }
   }
 

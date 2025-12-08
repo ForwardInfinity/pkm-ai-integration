@@ -6,6 +6,7 @@ import type { Note, UpdateNoteInput, CreateNoteInput, NoteListItem } from '../ty
 import { noteKeys } from './use-notes'
 import { trashKeys } from '@/features/trash/hooks'
 import type { TrashNoteItem } from '@/features/trash/types'
+import { triggerEmbeddingGeneration } from '../actions/trigger-embedding'
 
 // Update note params include the ID
 interface UpdateNoteParams extends UpdateNoteInput {
@@ -143,6 +144,14 @@ export function useUpdateNote() {
             tags: data.tags || [],
           } : n)
         })
+
+        // Trigger embedding regeneration in background
+        triggerEmbeddingGeneration({
+          id: data.id,
+          title: data.title,
+          problem: data.problem,
+          content: data.content,
+        }).catch(console.error)
       }
     },
   })
@@ -174,6 +183,14 @@ export function useCreateNote() {
         }
         return [newEntry, ...old]
       })
+
+      // Trigger embedding generation in background
+      triggerEmbeddingGeneration({
+        id: data.id,
+        title: data.title,
+        problem: data.problem,
+        content: data.content,
+      }).catch(console.error)
     },
   })
 }

@@ -11,9 +11,10 @@ npm run lint     # ESLint — MUST pass before completing work
 npm run test     # Vitest — MUST pass
 ```
 
-## Development Standards
+## DO
+- MUST clearly define the problem, think deeply through it and read the codebase for relevant files before any planning or execution.
 - Propose a plan before making large changes
-- Write tests for new functionality
+- WRITE tests for new functionality
 - Use TypeScript strict mode
 
 ## Tech Stack
@@ -105,7 +106,7 @@ See `types/database.types.ts` for full schema and `supabase/migrations/` for SQL
 
 ## Tooling Rules
 
-**ALWAYS use `ref` MCP to check docs before writing code for:**
+IMPORTANT: **ALWAYS use `ref` MCP to check docs before writing code for:**
 - Tiptap — editor extensions, commands, markdown
 - Vercel AI SDK — streamText, generateText, tools
 - Inngest — function definitions, event triggers

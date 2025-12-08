@@ -12,7 +12,7 @@ npm run test     # Vitest — MUST pass
 ```
 
 ## DO
-- MUST clearly define the problem, think deeply through it and read the codebase for relevant files before any planning or execution.
+- CRITICAL: MUST clearly define the problem, think deeply through it and read the codebase for relevant files before any planning or doing any task.
 - Propose a plan before making large changes
 - WRITE tests for new functionality
 - Use TypeScript strict mode

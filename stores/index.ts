@@ -22,3 +22,13 @@ export {
   useTabsActions,
   type Tab,
 } from "./tabs-store"
+
+export {
+  useCrucibleStore,
+  useCrucibleSession,
+  useCrucibleOpen,
+  useCrucibleStreaming,
+  useCrucibleActions,
+  useCurrentExchange,
+  useCrucibleProgress,
+} from "./crucible-store"

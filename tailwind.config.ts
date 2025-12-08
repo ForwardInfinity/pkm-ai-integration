@@ -58,6 +58,21 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      keyframes: {
+        breathing: {
+          "0%, 100%": {
+            boxShadow: "0 0 20px 5px rgba(147, 197, 253, 0.2)",
+            borderColor: "rgba(147, 197, 253, 0.3)",
+          },
+          "50%": {
+            boxShadow: "0 0 35px 12px rgba(147, 197, 253, 0.4)",
+            borderColor: "rgba(147, 197, 253, 0.5)",
+          },
+        },
+      },
+      animation: {
+        breathing: "breathing 3s ease-in-out infinite",
+      },
     },
   },
   plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],

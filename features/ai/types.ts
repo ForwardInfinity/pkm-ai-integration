@@ -12,14 +12,14 @@ export interface CritiqueResult {
   blindspots: string[];
 }
 
-export interface CleanNoteResult {
-  cleanedContent: string;
-  diff: DiffChange[];
+export interface CleanedNote {
+  title: string;
+  problem: string;
+  content: string;
 }
 
-export interface DiffChange {
-  type: 'addition' | 'deletion' | 'modification';
-  original?: string;
-  modified?: string;
-  lineNumber: number;
+export interface DiffPart {
+  value: string;
+  added?: boolean;
+  removed?: boolean;
 }

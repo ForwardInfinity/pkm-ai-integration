@@ -113,3 +113,18 @@
 .tiptap-editor .ProseMirror ::selection {
   @apply bg-primary/20;
 }
+
+/* Note cleaning mode - breathing animation */
+.note-cleaning {
+  @apply rounded-xl border-2 border-transparent transition-all duration-300;
+  animation: breathing 3s ease-in-out infinite;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .note-cleaning {
+    animation: none;
+    @apply border-blue-300/50;
+    box-shadow: 0 0 20px 5px rgba(147, 197, 253, 0.3);
+  }
+}

@@ -14,7 +14,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Loader2, AlertCircle, Sparkles, Check, X, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NoteActionsDropdown } from './note-actions-dropdown'
-import { useReconstructProblem } from '@/features/ai'
+import { useReconstructProblem, useCleanNote, InlineDiffInput, CleanNoteActionBar } from '@/features/ai'
+import '@/components/editor/editor-styles.css'
 import type { LocalNote } from '@/lib/local-db'
 
 interface NoteEditorProps {
@@ -60,6 +61,20 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
     reset: resetAI,
     result: aiResult,
   } = useReconstructProblem()
+
+  // AI clean note
+  const {
+    isLoading: isCleaning,
+    error: cleanError,
+    result: cleanResult,
+    original: cleanOriginal,
+    clean: cleanNote,
+    accept: acceptClean,
+    reject: rejectClean,
+  } = useCleanNote()
+
+  // Clean note review mode (when we have results to review)
+  const isInCleanReviewMode = !isCleaning && cleanResult !== null && cleanOriginal !== null
 
   // Refs for auto-expanding textareas
   const suggestionTextareaRef = useRef<HTMLTextAreaElement>(null)
@@ -228,6 +243,30 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
     }
   }
 
+  // Handle clean note button click
+  const handleCleanNote = async () => {
+    await cleanNote(title, problem, content)
+  }
+
+  // Accept cleaned note
+  const handleAcceptClean = () => {
+    const cleaned = acceptClean()
+    if (cleaned) {
+      setTitle(cleaned.title)
+      setProblem(cleaned.problem)
+      setContent(cleaned.content)
+      save({
+        title: cleaned.title,
+        problem: cleaned.problem || null,
+        content: cleaned.content,
+        wordCount: calculateWordCount(cleaned.content),
+      })
+      if (tabId) {
+        updateTabTitle(tabId, cleaned.title || 'Untitled')
+      }
+    }
+  }
+
   // Handle content save from editor - instant save
   const handleContentSave = useCallback(
     (markdown: string) => {
@@ -268,10 +307,30 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
     <div className="flex h-full flex-col">
       {/* Editor content */}
       <ScrollArea className="flex-1">
-        <div className="relative max-w-3xl mx-auto px-8 pt-12 pb-12">
-          {/* Actions dropdown - top right */}
+        <div
+          className={cn(
+            "relative max-w-3xl mx-auto px-8 pt-12 pb-12",
+            isCleaning && "note-cleaning"
+          )}
+        >
+          {/* Actions - top right */}
           {!isNewNote && note && (
-            <div className="absolute top-4 right-4">
+            <div className="absolute top-4 right-4 flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleCleanNote}
+                disabled={isCleaning || (!content.trim() && !title.trim())}
+                className="h-8 px-3 text-xs text-muted-foreground hover:text-foreground"
+              >
+                {isCleaning ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                )}
+                Clean
+              </Button>
               <NoteActionsDropdown
                 noteId={note.id}
                 title={title}
@@ -281,18 +340,41 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
           )}
 
           {/* Title input - large and prominent */}
-          <input
-            type="text"
-            value={title}
-            onChange={handleTitleChange}
-            placeholder="Untitled"
-            spellCheck={false}
-            className="w-full mb-6 text-4xl md:text-5xl font-bold leading-tight tracking-tight bg-transparent border-none outline-none placeholder:text-muted-foreground/30 focus:ring-0"
-          />
+          {isInCleanReviewMode ? (
+            <div className="w-full mb-6 text-4xl md:text-5xl font-bold leading-tight tracking-tight">
+              <InlineDiffInput
+                original={cleanOriginal.title}
+                cleaned={cleanResult.title}
+                placeholder="Untitled"
+              />
+            </div>
+          ) : (
+            <input
+              type="text"
+              value={title}
+              onChange={handleTitleChange}
+              placeholder="Untitled"
+              spellCheck={false}
+              disabled={isCleaning}
+              className={cn(
+                "w-full mb-6 text-4xl md:text-5xl font-bold leading-tight tracking-tight bg-transparent border-none outline-none placeholder:text-muted-foreground/30 focus:ring-0",
+                isCleaning && "opacity-70"
+              )}
+            />
+          )}
 
           {/* Problem field - subtle, inline feel */}
           <div className="relative mb-8 pb-2 border-b border-border/40 group hover:border-border/60 focus-within:border-border/60 transition-colors">
-            {currentSuggestion ? (
+            {isInCleanReviewMode ? (
+              // Clean review mode - show diff
+              <div className="text-base text-muted-foreground">
+                <InlineDiffInput
+                  original={cleanOriginal.problem}
+                  cleaned={cleanResult.problem}
+                  placeholder="What problem does this solve?"
+                />
+              </div>
+            ) : currentSuggestion ? (
               // AI suggestion mode
               <div className="space-y-3">
                 <textarea
@@ -395,6 +477,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
                   onChange={handleProblemChangeWithAIClear}
                   placeholder="What problem does this solve?"
                   spellCheck={false}
+                  disabled={isCleaning}
                   style={{ resize: 'none', minHeight: '1.5rem', overflow: 'hidden' }}
                   className={cn(
                     "w-full bg-transparent",
@@ -403,7 +486,8 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
                     "placeholder:text-muted-foreground/40 placeholder:italic",
                     "focus:ring-0 focus:text-foreground/70",
                     "transition-colors duration-200",
-                    "pr-28"
+                    "pr-28",
+                    isCleaning && "opacity-70"
                   )}
                 />
                 {/* Reconstruct button - inside field, bottom right */}
@@ -434,15 +518,41 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
           </div>
 
           {/* Content editor */}
-          <MarkdownEditor
-            content={content}
-            placeholder="Start writing your thoughts..."
-            onChange={handleContentChange}
-            onSave={handleContentSave}
-            className="min-h-[400px]"
-          />
+          {isInCleanReviewMode ? (
+            <div className="min-h-[400px] prose prose-neutral dark:prose-invert max-w-none">
+              <InlineDiffInput
+                original={cleanOriginal.content}
+                cleaned={cleanResult.content}
+                placeholder="Start writing your thoughts..."
+                multiline
+              />
+            </div>
+          ) : (
+            <MarkdownEditor
+              content={content}
+              placeholder="Start writing your thoughts..."
+              onChange={handleContentChange}
+              onSave={handleContentSave}
+              className={cn("min-h-[400px]", isCleaning && "opacity-70 pointer-events-none")}
+              editable={!isCleaning}
+            />
+          )}
         </div>
       </ScrollArea>
+
+      {/* Clean Note Action Bar */}
+      <CleanNoteActionBar
+        visible={isInCleanReviewMode}
+        onAccept={handleAcceptClean}
+        onReject={rejectClean}
+      />
+
+      {/* Clean Note Error Toast */}
+      {cleanError && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-destructive/90 text-destructive-foreground rounded-lg shadow-lg text-sm animate-in slide-in-from-bottom-4 fade-in">
+          {cleanError}
+        </div>
+      )}
     </div>
   )
 }

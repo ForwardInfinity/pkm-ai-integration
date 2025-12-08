@@ -14,7 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Loader2, AlertCircle, Sparkles, Check, X, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NoteActionsDropdown } from './note-actions-dropdown'
-import { useReconstructProblem, useCleanNote, InlineDiffInput, CleanNoteActionBar } from '@/features/ai'
+import { useReconstructProblem, useCleanNote, InlineDiffInput, CleanNoteActionBar, CleanNotePreviewModal } from '@/features/ai'
 import '@/components/editor/editor-styles.css'
 import type { LocalNote } from '@/lib/local-db'
 
@@ -75,6 +75,9 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
 
   // Clean note review mode (when we have results to review)
   const isInCleanReviewMode = !isCleaning && cleanResult !== null && cleanOriginal !== null
+
+  // Preview modal state
+  const [showPreview, setShowPreview] = useState(false)
 
   // Refs for auto-expanding textareas
   const suggestionTextareaRef = useRef<HTMLTextAreaElement>(null)
@@ -525,6 +528,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
                 cleaned={cleanResult.content}
                 placeholder="Start writing your thoughts..."
                 multiline
+                mode="sentences"
               />
             </div>
           ) : (
@@ -545,7 +549,22 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
         visible={isInCleanReviewMode}
         onAccept={handleAcceptClean}
         onReject={rejectClean}
+        onPreview={() => setShowPreview(true)}
       />
+
+      {/* Clean Note Preview Modal */}
+      {isInCleanReviewMode && (
+        <CleanNotePreviewModal
+          open={showPreview}
+          onOpenChange={setShowPreview}
+          original={{ title, problem, content }}
+          cleaned={{
+            title: cleanResult.title,
+            problem: cleanResult.problem,
+            content: cleanResult.content,
+          }}
+        />
+      )}
 
       {/* Clean Note Error Toast */}
       {cleanError && (

@@ -1,20 +1,30 @@
 'use client'
 
 import { useMemo } from 'react'
-import { diffWords } from 'diff'
+import { diffWords, diffSentences } from 'diff'
 import { cn } from '@/lib/utils'
+
+type DiffMode = 'words' | 'sentences'
+
+// Shared styling for diff parts - soft gray for removed (non-judgmental)
+const DIFF_STYLES = {
+  added: "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100 rounded px-1 py-0.5",
+  removed: "line-through text-muted-foreground/40 decoration-muted-foreground/30",
+}
 
 interface InlineDiffTextProps {
   original: string
   cleaned: string
   className?: string
+  mode?: DiffMode
 }
 
-export function InlineDiffText({ original, cleaned, className }: InlineDiffTextProps) {
+export function InlineDiffText({ original, cleaned, className, mode = 'words' }: InlineDiffTextProps) {
   const parts = useMemo(() => {
     if (!original && !cleaned) return []
-    return diffWords(original || '', cleaned || '')
-  }, [original, cleaned])
+    const diffFn = mode === 'sentences' ? diffSentences : diffWords
+    return diffFn(original || '', cleaned || '')
+  }, [original, cleaned, mode])
 
   const hasChanges = useMemo(() => {
     return parts.some((part) => part.added || part.removed)
@@ -29,20 +39,14 @@ export function InlineDiffText({ original, cleaned, className }: InlineDiffTextP
       {parts.map((part, index) => {
         if (part.added) {
           return (
-            <span
-              key={index}
-              className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 rounded-sm px-0.5"
-            >
+            <span key={index} className={DIFF_STYLES.added}>
               {part.value}
             </span>
           )
         }
         if (part.removed) {
           return (
-            <span
-              key={index}
-              className="line-through text-muted-foreground/50 decoration-muted-foreground/30"
-            >
+            <span key={index} className={DIFF_STYLES.removed}>
               {part.value}
             </span>
           )
@@ -59,6 +63,7 @@ interface InlineDiffInputProps {
   placeholder?: string
   className?: string
   multiline?: boolean
+  mode?: DiffMode
 }
 
 export function InlineDiffInput({
@@ -67,11 +72,13 @@ export function InlineDiffInput({
   placeholder,
   className,
   multiline = false,
+  mode = 'words',
 }: InlineDiffInputProps) {
   const parts = useMemo(() => {
     if (!original && !cleaned) return []
-    return diffWords(original || '', cleaned || '')
-  }, [original, cleaned])
+    const diffFn = mode === 'sentences' ? diffSentences : diffWords
+    return diffFn(original || '', cleaned || '')
+  }, [original, cleaned, mode])
 
   const hasChanges = useMemo(() => {
     return parts.some((part) => part.added || part.removed)
@@ -96,20 +103,14 @@ export function InlineDiffInput({
       {parts.map((part, index) => {
         if (part.added) {
           return (
-            <span
-              key={index}
-              className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 rounded-sm px-0.5"
-            >
+            <span key={index} className={DIFF_STYLES.added}>
               {part.value}
             </span>
           )
         }
         if (part.removed) {
           return (
-            <span
-              key={index}
-              className="line-through text-muted-foreground/50 decoration-muted-foreground/30"
-            >
+            <span key={index} className={DIFF_STYLES.removed}>
               {part.value}
             </span>
           )

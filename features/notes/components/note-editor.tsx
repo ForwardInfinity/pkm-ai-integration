@@ -557,7 +557,11 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
         <CleanNotePreviewModal
           open={showPreview}
           onOpenChange={setShowPreview}
-          original={{ title, problem, content }}
+          original={{
+            title: cleanOriginal.title,
+            problem: cleanOriginal.problem,
+            content: cleanOriginal.content,
+          }}
           cleaned={{
             title: cleanResult.title,
             problem: cleanResult.problem,

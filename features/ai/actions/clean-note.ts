@@ -1,12 +1,10 @@
 'use server'
 
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { generateText } from 'ai'
+import { generateText, APICallError } from 'ai'
 import type { CleanedNote } from '../types'
 
-const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY!,
-})
+const MAX_INPUT_CHARS = 32000
 
 const SYSTEM_PROMPT = `You are helping improve the readability of notes without changing their meaning or substance.
 
@@ -43,6 +41,21 @@ export async function cleanNote(
   problem: string,
   content: string
 ): Promise<CleanedNote> {
+  // Validate API key
+  const apiKey = process.env.OPENROUTER_API_KEY
+  if (!apiKey) {
+    throw new Error('OPENROUTER_API_KEY environment variable is not set')
+  }
+
+  // Validate input length
+  const totalLength = title.length + problem.length + content.length
+  if (totalLength > MAX_INPUT_CHARS) {
+    throw new Error(
+      `Note is too long (${totalLength.toLocaleString()} characters). Maximum allowed: ${MAX_INPUT_CHARS.toLocaleString()} characters.`
+    )
+  }
+
+  const openrouter = createOpenRouter({ apiKey })
   const model = openrouter('openai/gpt-4o-mini')
 
   const userPrompt = `Please clean up the following note to improve readability while preserving all meaning:
@@ -56,24 +69,47 @@ ${content || '(empty)'}
 
 Return the cleaned versions as JSON. If a field is empty or marked as "(empty)", return an empty string for that field.`
 
-  const { text } = await generateText({
-    model,
-    system: SYSTEM_PROMPT,
-    prompt: userPrompt,
-  })
-
   try {
+    const { text } = await generateText({
+      model,
+      system: SYSTEM_PROMPT,
+      prompt: userPrompt,
+      maxOutputTokens: 4096,
+      temperature: 0.3,
+      maxRetries: 3,
+    })
+
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
-      throw new Error('No JSON found in response')
+      throw new Error('AI response did not contain valid JSON')
     }
+
     const result = JSON.parse(jsonMatch[0]) as CleanedNote
     return {
       title: result.title || '',
       problem: result.problem || '',
       content: result.content || '',
     }
-  } catch {
-    throw new Error('Failed to parse AI response')
+  } catch (error) {
+    if (error instanceof APICallError) {
+      const statusCode = error.statusCode
+      if (statusCode === 429) {
+        throw new Error('Rate limit exceeded. Please try again in a moment.')
+      }
+      if (statusCode === 402) {
+        throw new Error('AI service quota exceeded. Please try again later.')
+      }
+      if (statusCode === 503 || statusCode === 502) {
+        throw new Error('AI service temporarily unavailable. Please try again.')
+      }
+      throw new Error(`AI service error: ${error.message}`)
+    }
+    if (error instanceof SyntaxError) {
+      throw new Error('Failed to parse AI response. Please try again.')
+    }
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error('An unexpected error occurred while cleaning the note.')
   }
 }

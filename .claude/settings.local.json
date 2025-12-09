@@ -17,7 +17,8 @@
       "Bash(npm ls:*)",
       "mcp__Ref__ref_search_documentation",
       "mcp__Ref__ref_read_url",
-      "mcp__exa__get_code_context_exa"
+      "mcp__exa__get_code_context_exa",
+      "mcp__exa__web_search_exa"
     ],
     "deny": [],
     "ask": []

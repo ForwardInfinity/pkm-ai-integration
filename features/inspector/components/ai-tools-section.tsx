@@ -1,6 +1,6 @@
 'use client'
 
-import { Sparkles, MessageSquareWarning, Wand2 } from 'lucide-react'
+import { Sparkles, MessageSquareWarning } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { InspectorSection } from './inspector-section'
 
@@ -16,11 +16,6 @@ export function AIToolsSection({ noteId, disabled = false }: AIToolsSectionProps
   const handleCritiqueNote = () => {
     console.log('Critique note clicked - AI integration coming soon')
     // TODO: Implement AI critique functionality
-  }
-
-  const handleCleanNote = () => {
-    console.log('Clean note clicked - AI integration coming soon')
-    // TODO: Implement AI clean functionality
   }
 
   return (
@@ -39,16 +34,6 @@ export function AIToolsSection({ noteId, disabled = false }: AIToolsSectionProps
         >
           <MessageSquareWarning className="h-4 w-4" />
           Critique This Note
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full justify-start gap-2"
-          onClick={handleCleanNote}
-          disabled={isDisabled}
-        >
-          <Wand2 className="h-4 w-4" />
-          Clean Note
         </Button>
         {isDisabled && (
           <p className="text-xs text-muted-foreground mt-2">

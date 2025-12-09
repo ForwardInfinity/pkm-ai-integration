@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Refinery
 
 Note-taking system implementing evolutionary epistemology (Popper/Deutsch)—knowledge grows through conjecture and refutation. Notes are conjectures facing selection pressure via conflict detection, AI criticism, and semantic surfacing.
@@ -15,7 +19,7 @@ npm run test         # Vitest — must pass
 ## Operating Rules
 - CRITICAL: MUST clearly define the problem, think deeply through it and read the codebase for relevant files before any planning or doing any task
 - IMPORTANT: ALWAYS use `ref` MCP to check docs before writing code for: Tiptap, Vercel AI SDK, Inngest and React Flow
-- Write tests for new functionality
+- Write tests for new functionality (tests go in `tests/` directory, not colocated)
 - Use TypeScript strict mode
 
 ## Tech Stack
@@ -115,8 +119,7 @@ See `types/database.types.ts` for full schema and `supabase/migrations/` for SQL
 
 ## Additional Context
 
-- Product vision & user stories: `@PRD.md`
+- Product vision & user stories: `PRD.md`
 - Database migrations: `supabase/migrations/`
 - Editor implementation: `components/editor/markdown-editor.tsx`
 - Note editor with local-first: `features/notes/components/note-editor.tsx`
-- Background embedding job: `lib/inngest/functions/generate-embedding.ts`

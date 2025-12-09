@@ -15,7 +15,6 @@ npm run test         # Vitest — must pass
 ## Operating Rules
 - CRITICAL: MUST clearly define the problem, think deeply through it and read the codebase for relevant files before any planning or doing any task
 - IMPORTANT: ALWAYS use `ref` MCP to check docs before writing code for: Tiptap, Vercel AI SDK, Inngest and React Flow
-- Propose a plan before making large changes
 - Write tests for new functionality
 - Use TypeScript strict mode
 

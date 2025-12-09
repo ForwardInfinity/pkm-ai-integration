@@ -30,6 +30,7 @@ npm run test         # Vitest — must pass
 - **State**: Zustand (client) + TanStack Query v5 (server)
 - **AI**: Vercel AI SDK 5.0 + OpenRouter
 - **Background Jobs**: Inngest
+- **Validation**: Zod
 - **Editor**: Tiptap + tiptap-markdown
 - **Graph**: React Flow (@xyflow/react)
 

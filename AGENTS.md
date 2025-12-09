@@ -29,6 +29,7 @@ npm run test         # Vitest — must pass
 - **Validation**: Zod
 - **Editor**: Tiptap + tiptap-markdown
 - **Graph**: React Flow (@xyflow/react)
+- **Testing**: Vitest, React Testing Library, Playwright
 
 ## Project Layout
 
@@ -49,6 +50,7 @@ lib/
   inngest/              # Background job client
   local-db/             # IndexedDB cache + sync queue
 stores/                 # Zustand stores
+tests/                  # Testing
 types/database.types.ts # Generated Supabase types
 ```
 

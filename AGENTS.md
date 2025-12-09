@@ -5,16 +5,18 @@ Note-taking system implementing evolutionary epistemology (Popper/Deutsch)—kno
 ## Core Commands
 
 ```bash
-npm run dev      # Dev server with Turbopack (localhost:3000)
-npm run build    # Production build — MUST pass before completing work
-npm run lint     # ESLint — MUST pass before completing work
-npm run test     # Vitest — MUST pass
+npm run dev          # Dev server with Turbopack (localhost:3000)
+npm run dev:inngest  # Background job dev server
+npm run build        # Production build — must pass 
+npm run lint         # ESLint — must pass
+npm run test         # Vitest — must pass
 ```
 
-## DO
-- CRITICAL: MUST clearly define the problem, think deeply through it and read the codebase for relevant files before any planning or doing any task.
+## Operating Rules
+- CRITICAL: MUST clearly define the problem, think deeply through it and read the codebase for relevant files before any planning or doing any task
+- IMPORTANT: ALWAYS use `ref` MCP to check docs before writing code for: Tiptap, Vercel AI SDK, Inngest and React Flow
 - Propose a plan before making large changes
-- WRITE tests for new functionality
+- Write tests for new functionality
 - Use TypeScript strict mode
 
 ## Tech Stack
@@ -36,6 +38,7 @@ app/                    # Next.js App Router (routes only)
   (dashboard)/          # Protected: /notes, /conflicts, /graph, /trash
   (admin)/              # Admin: /admin
 features/               # Feature modules (domain logic)
+  [domain]/actions/     # Server actions
   [domain]/components/  # Domain-specific UI
   [domain]/hooks/       # TanStack Query hooks
   [domain]/types.ts     # TypeScript interfaces
@@ -104,14 +107,6 @@ Notes use IndexedDB for offline support and optimistic UI:
 
 See `types/database.types.ts` for full schema and `supabase/migrations/` for SQL.
 
-## Tooling Rules
-
-IMPORTANT: **ALWAYS use `ref` MCP to check docs before writing code for:**
-- Tiptap — editor extensions, commands, markdown
-- Vercel AI SDK — streamText, generateText, tools
-- Inngest — function definitions, event triggers
-- React Flow (@xyflow/react) — nodes, edges, custom components
-
 ## AI Integration
 
 - Use Vercel AI SDK (`ai` package) with `@openrouter/ai-sdk-provider`
@@ -125,3 +120,4 @@ IMPORTANT: **ALWAYS use `ref` MCP to check docs before writing code for:**
 - Database migrations: `supabase/migrations/`
 - Editor implementation: `components/editor/markdown-editor.tsx`
 - Note editor with local-first: `features/notes/components/note-editor.tsx`
+- Background embedding job: `lib/inngest/functions/generate-embedding.ts`

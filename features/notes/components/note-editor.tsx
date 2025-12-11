@@ -14,7 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Loader2, AlertCircle, Sparkles, Check, X, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { NoteActionsDropdown } from './note-actions-dropdown'
-import { useReconstructProblem, useCleanNote, InlineDiffInput, CleanNoteActionBar, CleanNotePreviewModal } from '@/features/ai'
+import { useReconstructProblem, useCleanNote, CleanDiffTitle, CleanDiffField, CleanDiffContent, CleanNoteActionBar, CleanNotePreviewModal } from '@/features/ai'
 import '@/components/editor/editor-styles.css'
 import type { LocalNote } from '@/lib/local-db'
 
@@ -344,11 +344,10 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
 
           {/* Title input - large and prominent */}
           {isInCleanReviewMode ? (
-            <div className="w-full mb-6 text-4xl md:text-5xl font-bold leading-tight tracking-tight">
-              <InlineDiffInput
+            <div className="w-full mb-6">
+              <CleanDiffTitle
                 original={cleanOriginal.title}
                 cleaned={cleanResult.title}
-                placeholder="Untitled"
               />
             </div>
           ) : (
@@ -370,13 +369,11 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
           <div className="relative mb-8 pb-2 border-b border-border/40 group hover:border-border/60 focus-within:border-border/60 transition-colors">
             {isInCleanReviewMode ? (
               // Clean review mode - show diff
-              <div className="text-base text-muted-foreground">
-                <InlineDiffInput
-                  original={cleanOriginal.problem}
-                  cleaned={cleanResult.problem}
-                  placeholder="What problem does this solve?"
-                />
-              </div>
+              <CleanDiffField
+                original={cleanOriginal.problem}
+                cleaned={cleanResult.problem}
+                placeholder="What problem does this solve?"
+              />
             ) : currentSuggestion ? (
               // AI suggestion mode
               <div className="space-y-3">
@@ -522,15 +519,11 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
 
           {/* Content editor */}
           {isInCleanReviewMode ? (
-            <div className="min-h-[400px] prose prose-neutral dark:prose-invert max-w-none">
-              <InlineDiffInput
-                original={cleanOriginal.content}
-                cleaned={cleanResult.content}
-                placeholder="Start writing your thoughts..."
-                multiline
-                mode="sentences"
-              />
-            </div>
+            <CleanDiffContent
+              original={cleanOriginal.content}
+              cleaned={cleanResult.content}
+              className="min-h-[400px]"
+            />
           ) : (
             <MarkdownEditor
               content={content}

@@ -35,7 +35,7 @@ export function BacklinksSection({ noteId, backlinks = [] }: BacklinksSectionPro
           </span>
         ) : null
       }
-      defaultOpen={false}
+      defaultOpen={true}
     >
       {!noteId || noteId === 'new' ? (
         <p className="text-sm text-muted-foreground">

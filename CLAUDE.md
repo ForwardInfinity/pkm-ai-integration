@@ -17,9 +17,10 @@ npm run test         # Vitest — must pass
 ```
 
 ## Operating Rules
-- CRITICAL: MUST clearly define the problem and think deeply through it. Read and understand the codebase for relevant files before any planning or doing any task
-- IMPORTANT: ALWAYS use `ref` MCP to check docs before writing code for: Tiptap, Vercel AI SDK, Inngest and React Flow
-- Write tests for new functionality (tests go in `tests/` directory, not colocated)
+- CRITICAL: MUST take time to fully break down and analyze problems before attempting to solve them. Deeply understanding the problem is non-negotiable. Your thinking should be thorough and deep, so it's fine if it's very long
+- MUST read and understand the codebase for relevant files before any planning or doing any task
+- IMPORTANT: Always use `ref` MCP to check docs before writing code for: Tiptap, Vercel AI SDK, Inngest and React Flow
+- Must write tests for new functionality (tests go in `tests/` directory, not colocated)
 - Use TypeScript strict mode
 
 ## Tech Stack
@@ -122,7 +123,8 @@ See `types/database.types.ts` for full schema and `supabase/migrations/` for SQL
 
 ## Additional Context
 
-- Product vision & user stories: `PRD.md`
+- Product vision: `PRD.md`
+- Data model: `DATA-MODEL.md`
 - Database migrations: `supabase/migrations/`
 - Editor implementation: `components/editor/markdown-editor.tsx`
 - Note editor with local-first: `features/notes/components/note-editor.tsx`

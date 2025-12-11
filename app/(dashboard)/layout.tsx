@@ -43,7 +43,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-background">
+    <div className="h-screen overflow-hidden bg-background" suppressHydrationWarning>
       <ThreePanelLayout
         defaultLayout={defaultLayout}
         defaultCollapsed={defaultCollapsed}

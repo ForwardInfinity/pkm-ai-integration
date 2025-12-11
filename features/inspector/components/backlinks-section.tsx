@@ -1,12 +1,12 @@
 'use client'
 
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Link2, ExternalLink } from 'lucide-react'
+import { useTabsActions } from '@/stores'
 import { InspectorSection } from './inspector-section'
 
 interface BacklinksSectionProps {
   noteId: string | null
-  // Placeholder for backlinks data - will be fetched later
   backlinks?: Array<{
     id: string
     title: string
@@ -15,7 +15,14 @@ interface BacklinksSectionProps {
 }
 
 export function BacklinksSection({ noteId, backlinks = [] }: BacklinksSectionProps) {
+  const router = useRouter()
+  const { openTab } = useTabsActions()
   const hasBacklinks = backlinks.length > 0
+
+  const handleBacklinkClick = (backlink: { id: string; title: string }) => {
+    openTab(backlink.id, backlink.title || 'Untitled', true)
+    router.push(`/notes/${backlink.id}`)
+  }
 
   return (
     <InspectorSection
@@ -37,10 +44,11 @@ export function BacklinksSection({ noteId, backlinks = [] }: BacklinksSectionPro
       ) : hasBacklinks ? (
         <div className="space-y-1">
           {backlinks.map((backlink) => (
-            <Link
+            <button
               key={backlink.id}
-              href={`/notes/${backlink.id}`}
-              className="flex items-start gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors group"
+              type="button"
+              onClick={() => handleBacklinkClick(backlink)}
+              className="w-full flex items-start gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors group text-left"
             >
               <Link2 className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
@@ -54,7 +62,7 @@ export function BacklinksSection({ noteId, backlinks = [] }: BacklinksSectionPro
                 )}
               </div>
               <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-            </Link>
+            </button>
           ))}
         </div>
       ) : (

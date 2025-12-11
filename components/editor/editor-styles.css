@@ -131,18 +131,8 @@
 
 /* WikiLink styles */
 .tiptap-editor .ProseMirror .wikilink {
-  @apply text-primary font-medium cursor-pointer px-0.5 rounded;
-  @apply hover:bg-primary/10 transition-colors;
-}
-
-.tiptap-editor .ProseMirror .wikilink::before {
-  content: '[[';
-  @apply text-muted-foreground/50 text-xs;
-}
-
-.tiptap-editor .ProseMirror .wikilink::after {
-  content: ']]';
-  @apply text-muted-foreground/50 text-xs;
+  @apply text-blue-600 underline cursor-pointer;
+  @apply hover:text-blue-800 transition-colors;
 }
 
 /* WikiLink preview (while typing [[...]]) */

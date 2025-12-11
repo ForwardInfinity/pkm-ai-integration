@@ -73,7 +73,7 @@ erDiagram
 | Function | Purpose |
 |----------|---------|
 | `search_notes` | Semantic search via embeddings |
-| `get_related_notes` | Find similar notes by embedding (with similarity threshold) |
+| `get_related_notes` | Find similar notes by embedding |
 | `get_backlinks` | Notes linking to target |
 | `find_potential_conflicts` | Detect conflicts between notes |
 | `get_unresolved_conflict_count` | Count for sidebar badge |

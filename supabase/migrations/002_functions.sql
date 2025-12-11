@@ -137,9 +137,11 @@ $$;
 comment on function search_notes is 'Semantic search: finds notes similar to query embedding';
 
 -- Find related notes by semantic similarity
+-- Filters by minimum similarity threshold to avoid showing unrelated notes
 create or replace function get_related_notes(
   target_note_id uuid,
-  match_count int default 5
+  match_count int default 5,
+  match_threshold float default 0.3
 )
 returns table (
   id uuid,
@@ -163,15 +165,17 @@ as $$
     and n.deleted_at is null
     and n.embedding is not null
     and target.embedding is not null
+    and 1 - (n.embedding <=> target.embedding) >= match_threshold
   order by n.embedding <=> target.embedding
   limit match_count;
 $$;
 
-comment on function get_related_notes is 'Returns notes semantically similar to a target note';
+comment on function get_related_notes is 'Returns notes semantically similar to a target note, filtered by minimum similarity threshold';
 
 -- Get backlinks for a note
+-- Note: Parameter prefixed with p_ to avoid collision with column name nl.target_note_id
 create or replace function get_backlinks(
-  target_note_id uuid
+  p_target_note_id uuid
 )
 returns table (
   id uuid,
@@ -185,7 +189,7 @@ as $$
   select n.id, n.title, n.problem
   from note_links nl
   join notes n on n.id = nl.source_note_id
-  where nl.target_note_id = target_note_id
+  where nl.target_note_id = p_target_note_id
     and nl.user_id = auth.uid()
     and n.deleted_at is null
   order by n.updated_at desc;

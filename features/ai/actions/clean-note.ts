@@ -20,12 +20,15 @@ You MUST preserve:
 - All original ideas, arguments, and opinions
 - Technical terminology and domain-specific language
 - The overall meaning and intent
+- Backlinks to other notes
+
 
 You MUST NOT:
 - Add new information or ideas
 - Remove any substantive content
 - Change the author's conclusions or opinions
 - Over-format or add unnecessary structure
+- Change/remove backlinks to other notes
 
 IMPORTANT: The response language MUST match the note's original language.
 

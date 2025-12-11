@@ -1,7 +1,7 @@
 'use client'
 
 import { useCurrentNote, useCurrentNoteId } from '@/stores'
-import { useBacklinks } from '@/features/notes/hooks'
+import { useBacklinks, useRelatedNotes } from '@/features/notes/hooks'
 import { AIToolsSection } from './ai-tools-section'
 import { ConflictsSection } from './conflicts-section'
 import { RelatedNotesSection } from './related-notes-section'
@@ -22,6 +22,9 @@ export function NoteInspector() {
   // Fetch backlinks for the current note
   const { data: backlinks } = useBacklinks(effectiveNoteId)
 
+  // Fetch semantically related notes
+  const { data: relatedNotes, isLoading: isLoadingRelated } = useRelatedNotes(effectiveNoteId)
+
   return (
     <div className="space-y-0">
       {/* AI Tools Section */}
@@ -40,8 +43,8 @@ export function NoteInspector() {
       {/* Related Notes Section */}
       <RelatedNotesSection 
         noteId={effectiveNoteId}
-        // Placeholder: related notes will be fetched via hook later
-        relatedNotes={[]}
+        relatedNotes={relatedNotes ?? []}
+        isLoading={isLoadingRelated}
       />
 
       {/* Tags Section */}

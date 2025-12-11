@@ -6,10 +6,11 @@ import { Markdown } from 'tiptap-markdown'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
 import TaskList from '@tiptap/extension-task-list'
-import { UnderlineMarkdown, HighlightMarkdown } from './extensions'
+import Suggestion from '@tiptap/suggestion'
+import { UnderlineMarkdown, HighlightMarkdown, WikiLink, createWikiLinkSuggestion } from './extensions'
 import TaskItem from '@tiptap/extension-task-item'
 import Typography from '@tiptap/extension-typography'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
 import { EditorBubbleMenu } from './bubble-menu'
 import type { MarkdownEditorProps } from './types'
 import { cn } from '@/lib/utils'
@@ -22,19 +23,16 @@ export function MarkdownEditor({
   onSave,
   className,
   editable = true,
+  wikiLinkConfig,
 }: MarkdownEditorProps) {
   const initialContentRef = useRef(content)
   const hasInitializedRef = useRef(false)
 
-  const editor = useEditor({
-    editorProps: {
-      attributes: {
-        spellcheck: 'false',
-      },
-    },
-    extensions: [
+  // Memoize extensions to prevent recreating on every render
+  const extensions = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const baseExtensions: any[] = [
       StarterKit.configure({
-        // Disable default code block (we can add syntax highlighting later)
         codeBlock: {
           HTMLAttributes: {
             class: 'not-prose',
@@ -42,18 +40,18 @@ export function MarkdownEditor({
         },
       }),
       Markdown.configure({
-        html: true, // Enable HTML for underline <u> tag serialization
-        tightLists: true, // Cleaner list output
-        bulletListMarker: '-', // Use dashes for bullets
-        transformPastedText: true, // Parse pasted markdown
-        transformCopiedText: true, // Copy as markdown
+        html: true,
+        tightLists: true,
+        bulletListMarker: '-',
+        transformPastedText: true,
+        transformCopiedText: true,
       }),
       Placeholder.configure({
         placeholder,
         emptyEditorClass: 'is-editor-empty',
       }),
       Link.configure({
-        openOnClick: false, // Don't open links while editing
+        openOnClick: false,
         HTMLAttributes: {
           class: 'text-primary underline underline-offset-2',
         },
@@ -67,17 +65,52 @@ export function MarkdownEditor({
         nested: true,
       }),
       Typography,
-    ],
-    content: '', // Start empty, we'll set content after mount
+    ]
+
+    // Add WikiLink extension if configured
+    if (wikiLinkConfig) {
+      baseExtensions.push(
+        WikiLink.configure({
+          onWikiLinkClick: wikiLinkConfig.onWikiLinkClick,
+        }).extend({
+          addProseMirrorPlugins() {
+            const originalPlugins = this.parent?.() ?? []
+            return [
+              ...originalPlugins,
+              Suggestion({
+                editor: this.editor,
+                ...createWikiLinkSuggestion({
+                  getNotes: wikiLinkConfig.getNotes,
+                  onCreateNote: wikiLinkConfig.onCreateNote,
+                }),
+              }),
+            ]
+          },
+        })
+      )
+    } else {
+      // Add basic WikiLink without suggestion
+      baseExtensions.push(WikiLink)
+    }
+
+    return baseExtensions
+  }, [placeholder, wikiLinkConfig])
+
+  const editor = useEditor({
+    editorProps: {
+      attributes: {
+        spellcheck: 'false',
+      },
+    },
+    extensions,
+    content: '',
     editable,
-    immediatelyRender: false, // Required for SSR compatibility
+    immediatelyRender: false,
     onUpdate: ({ editor }) => {
-      // Get markdown from tiptap-markdown extension
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const markdownStorage = (editor.storage as any).markdown
       const markdown = markdownStorage?.getMarkdown?.() ?? ''
       onChange?.(markdown)
-      // Call onSave immediately - debouncing is handled by useAutoSave hook
       onSave?.(markdown)
     },
   })

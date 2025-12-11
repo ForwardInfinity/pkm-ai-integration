@@ -1,2 +1,5 @@
 export { UnderlineMarkdown } from './underline-markdown'
 export { HighlightMarkdown } from './highlight-markdown'
+export { WikiLink, extractWikiLinksFromMarkdown } from './wikilink'
+export { createWikiLinkSuggestion } from './wikilink-suggestion'
+export type { WikiLinkSuggestionItem, WikiLinkSuggestionConfig } from './wikilink-suggestion'

@@ -8,8 +8,10 @@ import {
 } from './note-cache'
 import { getBrowserQueryClient } from '@/app/providers'
 import { noteKeys } from '@/features/notes/hooks/use-notes'
+import { backlinkKeys } from '@/features/notes/hooks/use-backlinks'
 import type { NoteListItem, Note } from '@/features/notes/types'
 import { triggerEmbeddingGeneration } from '@/features/notes/actions/trigger-embedding'
+import { syncNoteLinks } from '@/features/notes/actions/sync-note-links'
 
 const SYNC_DEBOUNCE_MS = 2000
 const MAX_RETRIES = 3
@@ -271,6 +273,21 @@ class SyncQueue {
           }
         })
         .catch(console.error)
+
+      // Sync note links for backlinks (best-effort)
+      syncNoteLinks(created.id, created.content || '')
+        .then((res) => {
+          if (!res.success) {
+            console.error('[NoteLinks] Failed to sync for new note:', res.error)
+          } else {
+            // Invalidate backlinks cache for any notes that were linked
+            const queryClient = getBrowserQueryClient()
+            if (queryClient) {
+              queryClient.invalidateQueries({ queryKey: backlinkKeys.all })
+            }
+          }
+        })
+        .catch(console.error)
     } else {
       // Update existing note
       let serverNoteId = item.noteId
@@ -339,6 +356,23 @@ class SyncQueue {
           }
         })
         .catch(console.error)
+
+      // Sync note links for backlinks when content changes (best-effort)
+      if (item.data.content !== undefined) {
+        syncNoteLinks(updated.id, updated.content || '')
+          .then((res) => {
+            if (!res.success) {
+              console.error('[NoteLinks] Failed to sync for updated note:', res.error)
+            } else {
+              // Invalidate backlinks cache for any notes that were linked/unlinked
+              const queryClient = getBrowserQueryClient()
+              if (queryClient) {
+                queryClient.invalidateQueries({ queryKey: backlinkKeys.all })
+              }
+            }
+          })
+          .catch(console.error)
+      }
     }
   }
 

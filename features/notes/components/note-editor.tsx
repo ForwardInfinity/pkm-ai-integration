@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { nanoid } from 'nanoid'
 import { MarkdownEditor } from '@/components/editor'
-import { useNote } from '../hooks'
+import { useNote, useNotes } from '../hooks'
 import { useAutoSave } from '../hooks/use-auto-save'
 import { useBeforeunloadSave } from '@/hooks/use-beforeunload-save'
 import { useNoteEditorStore, useTabsActions, useActiveTabId } from '@/stores'
@@ -17,6 +17,7 @@ import { NoteActionsDropdown } from './note-actions-dropdown'
 import { useReconstructProblem, useCleanNote, CleanDiffTitle, CleanDiffField, CleanDiffContent, CleanNoteActionBar, CleanNotePreviewModal } from '@/features/ai'
 import '@/components/editor/editor-styles.css'
 import type { LocalNote } from '@/lib/local-db'
+import type { WikiLinkConfig } from '@/components/editor/types'
 
 interface NoteEditorProps {
   noteId: string
@@ -42,9 +43,41 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   const { setCurrentNote, setCurrentNoteId, reset } = useNoteEditorStore()
   
   // Tab management
-  const { updateTabTitle, updateTabNoteId } = useTabsActions()
+  const { updateTabTitle, updateTabNoteId, openTab } = useTabsActions()
   const activeTabId = useActiveTabId()
   const isActiveTab = tabId === activeTabId
+
+  // Notes list for wikilink autocomplete
+  const { data: allNotes } = useNotes()
+
+  // Use ref to always get fresh notes data in callbacks
+  const allNotesRef = useRef(allNotes)
+  useEffect(() => {
+    allNotesRef.current = allNotes
+  }, [allNotes])
+
+  // WikiLink configuration for the editor
+  // Using ref ensures getNotes always returns current data even after editor initialization
+  const wikiLinkConfig = useMemo<WikiLinkConfig | undefined>(() => {
+    return {
+      getNotes: () =>
+        (allNotesRef.current ?? []).map((n) => ({
+          id: n.id,
+          title: n.title,
+          problem: n.problem,
+        })),
+      onWikiLinkClick: (noteTitle: string) => {
+        // Find the note by title using fresh data from ref
+        const notes = allNotesRef.current ?? []
+        const targetNote = notes.find(
+          (n) => n.title.toLowerCase() === noteTitle.toLowerCase()
+        )
+        if (targetNote) {
+          openTab(targetNote.id, targetNote.title, true)
+        }
+      },
+    }
+  }, [openTab])
 
   // Local state for form fields
   const [title, setTitle] = useState('')
@@ -549,6 +582,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
               onSave={handleContentSave}
               className={cn("min-h-[400px]", isCleaning && "opacity-70 pointer-events-none")}
               editable={!isCleaning}
+              wikiLinkConfig={wikiLinkConfig}
             />
           )}
         </div>

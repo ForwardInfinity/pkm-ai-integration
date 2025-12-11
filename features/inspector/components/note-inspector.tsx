@@ -1,6 +1,7 @@
 'use client'
 
 import { useCurrentNote, useCurrentNoteId } from '@/stores'
+import { useBacklinks } from '@/features/notes/hooks'
 import { AIToolsSection } from './ai-tools-section'
 import { ConflictsSection } from './conflicts-section'
 import { RelatedNotesSection } from './related-notes-section'
@@ -17,6 +18,9 @@ export function NoteInspector() {
 
   // Get tags from the current note, or empty array for new notes
   const tags = currentNote?.tags ?? []
+
+  // Fetch backlinks for the current note
+  const { data: backlinks } = useBacklinks(effectiveNoteId)
 
   return (
     <div className="space-y-0">
@@ -49,8 +53,7 @@ export function NoteInspector() {
       {/* Backlinks Section */}
       <BacklinksSection 
         noteId={effectiveNoteId}
-        // Placeholder: backlinks will be fetched via hook later
-        backlinks={[]}
+        backlinks={backlinks ?? []}
       />
     </div>
   )

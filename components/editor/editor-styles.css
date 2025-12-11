@@ -128,3 +128,29 @@
     box-shadow: 0 0 20px 5px rgba(147, 197, 253, 0.3);
   }
 }
+
+/* WikiLink styles */
+.tiptap-editor .ProseMirror .wikilink {
+  @apply text-primary font-medium cursor-pointer px-0.5 rounded;
+  @apply hover:bg-primary/10 transition-colors;
+}
+
+.tiptap-editor .ProseMirror .wikilink::before {
+  content: '[[';
+  @apply text-muted-foreground/50 text-xs;
+}
+
+.tiptap-editor .ProseMirror .wikilink::after {
+  content: ']]';
+  @apply text-muted-foreground/50 text-xs;
+}
+
+/* WikiLink preview (while typing [[...]]) */
+.tiptap-editor .ProseMirror .wikilink-preview {
+  @apply text-primary/70 bg-primary/5 rounded px-0.5;
+}
+
+/* WikiLink suggestion dropdown */
+.wikilink-suggestion-list {
+  @apply z-50;
+}

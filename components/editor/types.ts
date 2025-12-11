@@ -1,3 +1,17 @@
+import type { WikiLinkSuggestionItem } from './extensions'
+
+/**
+ * WikiLink configuration for enabling note linking
+ */
+export interface WikiLinkConfig {
+  /** Function to get available notes for autocomplete */
+  getNotes: () => WikiLinkSuggestionItem[]
+  /** Callback when a wikilink is clicked */
+  onWikiLinkClick?: (noteTitle: string) => void
+  /** Callback to create a new note from autocomplete */
+  onCreateNote?: (title: string) => Promise<string | null>
+}
+
 /**
  * Props for the MarkdownEditor component
  */
@@ -19,4 +33,7 @@ export interface MarkdownEditorProps {
 
   /** Whether the editor is editable (default: true) */
   editable?: boolean
+
+  /** WikiLink configuration for note linking (optional) */
+  wikiLinkConfig?: WikiLinkConfig
 }

@@ -13,3 +13,24 @@ export interface SearchQuery {
   limit?: number;
   offset?: number;
 }
+
+// Hybrid search result from database RPC
+export interface HybridSearchResult {
+  id: string;
+  title: string;
+  problem: string | null;
+  content: string;
+  snippet: string;
+  match_type: 'keyword' | 'semantic' | 'hybrid';
+  rrf_score: number;
+}
+
+// Transformed result for UI display
+export interface SearchDisplayResult {
+  id: string;
+  title: string;
+  problem: string | null;
+  snippet: string;
+  matchType: 'keyword' | 'semantic' | 'hybrid';
+  score: number;
+}

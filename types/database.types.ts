@@ -107,6 +107,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           embedding: string | null
+          fts: unknown | null
           id: string
           is_pinned: boolean
           problem: string | null
@@ -226,6 +227,25 @@ export type Database = {
         }[]
       }
       get_unresolved_conflict_count: { Args: never; Returns: number }
+      hybrid_search: {
+        Args: {
+          query_text: string
+          query_embedding: string
+          match_count?: number
+          full_text_weight?: number
+          semantic_weight?: number
+          rrf_k?: number
+        }
+        Returns: {
+          id: string
+          title: string
+          problem: string
+          content: string
+          snippet: string
+          match_type: string
+          rrf_score: number
+        }[]
+      }
       search_notes: {
         Args: {
           match_count?: number

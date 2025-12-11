@@ -1,18 +1,39 @@
 'use client'
 
-import { FileText } from 'lucide-react'
+import { FileText, Search, Brain, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { TextSearchResult } from '@/features/notes/types'
+import type { SearchDisplayResult } from '../types'
 
 interface SearchResultItemProps {
-  result: TextSearchResult
+  result: SearchDisplayResult
   query: string
   isSelected: boolean
   onClick: () => void
 }
 
+// Parse snippet with ** markers from ts_headline and highlight
+function renderSnippet(snippet: string): React.ReactNode {
+  if (!snippet) return null
+
+  // Split by ** markers (ts_headline format: **matched_text**)
+  const parts = snippet.split(/\*\*/)
+
+  return parts.map((part, index) => {
+    // Odd indices are matched text (between ** markers)
+    if (index % 2 === 1) {
+      return (
+        <mark key={index} className="bg-yellow-200 dark:bg-yellow-800 rounded-sm px-0.5">
+          {part}
+        </mark>
+      )
+    }
+    return part
+  })
+}
+
+// Highlight query matches in text (for title)
 function highlightMatch(text: string, query: string): React.ReactNode {
-  if (!query) return text
+  if (!query || !text) return text
 
   const lowerText = text.toLowerCase()
   const lowerQuery = query.toLowerCase()
@@ -35,12 +56,21 @@ function highlightMatch(text: string, query: string): React.ReactNode {
   )
 }
 
+const matchTypeConfig = {
+  keyword: { icon: Search, label: 'Keyword', className: 'text-blue-600 dark:text-blue-400' },
+  semantic: { icon: Brain, label: 'Semantic', className: 'text-purple-600 dark:text-purple-400' },
+  hybrid: { icon: Sparkles, label: 'Hybrid', className: 'text-amber-600 dark:text-amber-400' },
+}
+
 export function SearchResultItem({
   result,
   query,
   isSelected,
   onClick,
 }: SearchResultItemProps) {
+  const matchConfig = matchTypeConfig[result.matchType]
+  const MatchIcon = matchConfig.icon
+
   return (
     <button
       type="button"
@@ -56,21 +86,23 @@ export function SearchResultItem({
           <FileText className="h-4 w-4 text-muted-foreground" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-foreground">
-            {result.matchField === 'title'
-              ? highlightMatch(result.title, query)
-              : result.title || 'Untitled'}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-foreground truncate">
+              {highlightMatch(result.title, query) || 'Untitled'}
+            </p>
+            <span className={cn('flex items-center gap-0.5 text-xs shrink-0', matchConfig.className)}>
+              <MatchIcon className="h-3 w-3" />
+              <span className="sr-only">{matchConfig.label}</span>
+            </span>
+          </div>
           {result.problem && (
-            <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
-              {result.matchField === 'problem'
-                ? highlightMatch(result.problem, query)
-                : result.problem}
+            <p className="mt-1 text-sm text-muted-foreground line-clamp-1">
+              {result.problem}
             </p>
           )}
-          {result.matchField === 'content' && result.snippet && (
+          {result.snippet && (
             <p className="mt-1.5 text-sm text-muted-foreground/80 line-clamp-2">
-              {highlightMatch(result.snippet, query)}
+              {renderSnippet(result.snippet)}
             </p>
           )}
         </div>

@@ -6,7 +6,7 @@ import { MarkdownEditor } from '@/components/editor'
 import { useNote } from '../hooks'
 import { useAutoSave } from '../hooks/use-auto-save'
 import { useBeforeunloadSave } from '@/hooks/use-beforeunload-save'
-import { useNoteEditorStore, useTabsActions } from '@/stores'
+import { useNoteEditorStore, useTabsActions, useActiveTabId } from '@/stores'
 import { getNoteLocally } from '@/lib/local-db/note-cache'
 import { getSyncQueue } from '@/lib/local-db/sync-queue'
 import { Button } from '@/components/ui/button'
@@ -43,6 +43,8 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   
   // Tab management
   const { updateTabTitle, updateTabNoteId } = useTabsActions()
+  const activeTabId = useActiveTabId()
+  const isActiveTab = tabId === activeTabId
 
   // Local state for form fields
   const [title, setTitle] = useState('')
@@ -188,12 +190,27 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
     }
   }, [isNewNote, localNoteId, getServerId, tabId, updateTabNoteId])
 
-  // Cleanup store on unmount
+  // Sync store when this tab becomes active (e.g., after another tab is closed)
+  useEffect(() => {
+    if (isActiveTab) {
+      if (note && !isNewNote) {
+        setCurrentNote(note)
+      } else if (isNewNote) {
+        setCurrentNoteId(localNoteId)
+      }
+    }
+  }, [isActiveTab, note, isNewNote, localNoteId, setCurrentNote, setCurrentNoteId])
+
+  // Cleanup store on unmount - only reset if this editor owns the current note
   useEffect(() => {
     return () => {
-      reset()
+      const currentId = useNoteEditorStore.getState().currentNoteId
+      // Only reset if this editor's note is the current one
+      if (currentId === noteId || currentId === localNoteId) {
+        reset()
+      }
     }
-  }, [reset])
+  }, [reset, noteId, localNoteId])
 
   // Calculate word count from content
   const calculateWordCount = useCallback((text: string) => {

@@ -23,7 +23,11 @@ export function NoteInspector() {
   const { data: backlinks } = useBacklinks(effectiveNoteId)
 
   // Fetch semantically related notes
-  const { data: relatedNotes, isLoading: isLoadingRelated } = useRelatedNotes(effectiveNoteId)
+  const {
+    data: relatedNotes,
+    isLoading: isLoadingRelated,
+    isError: isErrorRelated,
+  } = useRelatedNotes(effectiveNoteId)
 
   return (
     <div className="space-y-0">
@@ -45,6 +49,7 @@ export function NoteInspector() {
         noteId={effectiveNoteId}
         relatedNotes={relatedNotes ?? []}
         isLoading={isLoadingRelated}
+        isError={isErrorRelated}
       />
 
       {/* Tags Section */}

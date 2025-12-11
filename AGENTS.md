@@ -103,7 +103,7 @@ Notes use IndexedDB for offline support and optimistic UI:
 
 **Key RPCs**:
 - `search_notes` — semantic search via embeddings
-- `get_related_notes` — find similar notes
+- `get_related_notes` — find similar notes (with `match_threshold` to filter low relevance)
 - `get_backlinks` — notes linking to target
 - `find_potential_conflicts` — conflict detection
 - `get_unresolved_conflict_count` — sidebar badge

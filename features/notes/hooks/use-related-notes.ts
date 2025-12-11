@@ -4,9 +4,13 @@ import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { RelatedNote } from '../types'
 
+export const DEFAULT_MATCH_COUNT = 5
+export const DEFAULT_SIMILARITY_THRESHOLD = 0.3
+
 export const relatedNotesKeys = {
   all: ['related-notes'] as const,
-  list: (noteId: string) => [...relatedNotesKeys.all, noteId] as const,
+  list: (noteId: string, matchCount: number, matchThreshold: number) =>
+    [...relatedNotesKeys.all, noteId, matchCount, matchThreshold] as const,
 }
 
 async function fetchRelatedNotes(
@@ -38,11 +42,13 @@ async function fetchRelatedNotes(
  */
 export function useRelatedNotes(
   noteId: string | null,
-  matchCount = 5,
-  matchThreshold = 0.3
+  matchCount = DEFAULT_MATCH_COUNT,
+  matchThreshold = DEFAULT_SIMILARITY_THRESHOLD
 ) {
   return useQuery({
-    queryKey: noteId ? relatedNotesKeys.list(noteId) : ['related-notes', 'none'],
+    queryKey: noteId
+      ? relatedNotesKeys.list(noteId, matchCount, matchThreshold)
+      : ['related-notes', 'none'],
     queryFn: () =>
       noteId
         ? fetchRelatedNotes(noteId, matchCount, matchThreshold)

@@ -213,7 +213,11 @@ export type Database = {
         }[]
       }
       get_related_notes: {
-        Args: { match_count?: number; target_note_id: string }
+        Args: {
+          match_count?: number
+          match_threshold?: number
+          target_note_id: string
+        }
         Returns: {
           id: string
           problem: string

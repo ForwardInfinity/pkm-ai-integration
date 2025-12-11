@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { FileText, ExternalLink, Loader2 } from 'lucide-react'
+import { FileText, ExternalLink, Loader2, AlertCircle } from 'lucide-react'
 import { useTabsActions } from '@/stores'
 import { InspectorSection } from './inspector-section'
 
@@ -14,12 +14,14 @@ interface RelatedNotesSectionProps {
     similarity: number
   }>
   isLoading?: boolean
+  isError?: boolean
 }
 
 export function RelatedNotesSection({
   noteId,
   relatedNotes = [],
   isLoading = false,
+  isError = false,
 }: RelatedNotesSectionProps) {
   const router = useRouter()
   const { openTab } = useTabsActions()
@@ -47,6 +49,11 @@ export function RelatedNotesSection({
         <p className="text-sm text-muted-foreground">
           Save your note to find related content
         </p>
+      ) : isError ? (
+        <div className="flex items-center gap-2 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>Failed to load related notes</span>
+        </div>
       ) : isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />

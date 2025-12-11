@@ -13,7 +13,7 @@ async function fetchBacklinks(noteId: string): Promise<BacklinkNote[]> {
   const supabase = createClient()
 
   const { data, error } = await supabase.rpc('get_backlinks', {
-    target_note_id: noteId,
+    p_target_note_id: noteId,
   })
 
   if (error) {

@@ -194,7 +194,7 @@ export type Database = {
         }[]
       }
       get_backlinks: {
-        Args: { target_note_id: string }
+        Args: { p_target_note_id: string }
         Returns: {
           id: string
           problem: string

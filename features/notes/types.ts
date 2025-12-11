@@ -22,6 +22,7 @@ export type ProfileUpdate = TablesUpdate<'profiles'>;
 
 // Enum types
 export type ConflictStatus = Enums<'conflict_status'>;
+export type ConflictType = Enums<'conflict_type'>;
 export type UserRole = Enums<'user_role'>;
 
 // Input types for creating/updating notes (without system-managed fields)

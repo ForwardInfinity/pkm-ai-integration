@@ -16,32 +16,32 @@ export type Database = {
     Tables: {
       conflicts: {
         Row: {
+          conflict_type: Database["public"]["Enums"]["conflict_type"]
           created_at: string
           explanation: string
           id: string
           note_a_id: string
           note_b_id: string
-          resolved_at: string | null
           status: Database["public"]["Enums"]["conflict_status"]
           user_id: string
         }
         Insert: {
+          conflict_type?: Database["public"]["Enums"]["conflict_type"]
           created_at?: string
           explanation: string
           id?: string
           note_a_id: string
           note_b_id: string
-          resolved_at?: string | null
           status?: Database["public"]["Enums"]["conflict_status"]
           user_id: string
         }
         Update: {
+          conflict_type?: Database["public"]["Enums"]["conflict_type"]
           created_at?: string
           explanation?: string
           id?: string
           note_a_id?: string
           note_b_id?: string
-          resolved_at?: string | null
           status?: Database["public"]["Enums"]["conflict_status"]
           user_id?: string
         }
@@ -238,7 +238,8 @@ export type Database = {
       }
     }
     Enums: {
-      conflict_status: "unresolved" | "resolved" | "dismissed"
+      conflict_status: "active" | "dismissed"
+      conflict_type: "contradiction" | "tension"
       user_role: "user" | "admin"
     }
     CompositeTypes: {
@@ -367,7 +368,8 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      conflict_status: ["unresolved", "resolved", "dismissed"],
+      conflict_status: ["active", "dismissed"],
+      conflict_type: ["contradiction", "tension"],
       user_role: ["user", "admin"],
     },
   },

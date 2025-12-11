@@ -8,6 +8,7 @@ import { TabItem } from "@/components/layout/tab-item"
 import {
   useTabs,
   useActiveTabId,
+  useShowListView,
   useTabsActions,
 } from "@/stores/tabs-store"
 
@@ -19,6 +20,7 @@ export function TabBar() {
 
   const tabs = useTabs()
   const activeTabId = useActiveTabId()
+  const showListView = useShowListView()
   const { openTab, closeTab, activateTab, setShowListView } = useTabsActions()
 
   // Handle URL changes - URL is the single source of truth
@@ -77,13 +79,16 @@ export function TabBar() {
 
   const handleActivateTab = React.useCallback((tabId: string) => {
     const tab = tabs.find((t) => t.id === tabId)
-    if (tab && tab.id !== activeTabId) {
+    if (!tab) return
+    
+    // Navigate if: clicking a different tab OR clicking active tab while in list view
+    if (tab.id !== activeTabId || showListView) {
       activateTab(tabId)
       // Update URL without navigation (for bookmarking/sharing)
       const path = tab.noteId === "new" ? "/notes/new" : `/notes/${tab.noteId}`
       window.history.replaceState(null, "", path)
     }
-  }, [tabs, activeTabId, activateTab])
+  }, [tabs, activeTabId, showListView, activateTab])
 
   const handleCloseTab = React.useCallback((tabId: string) => {
     const tabIndex = tabs.findIndex((t) => t.id === tabId)

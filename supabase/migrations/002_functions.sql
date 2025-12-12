@@ -136,6 +136,89 @@ $$;
 
 comment on function search_notes is 'Semantic search: finds notes similar to query embedding';
 
+-- Hybrid search combining full-text search with semantic vector search
+-- Uses Reciprocal Rank Fusion (RRF) to merge results from both methods
+create or replace function hybrid_search(
+  query_text text,
+  query_embedding vector(1536),
+  match_count int default 10,
+  full_text_weight float default 1.0,
+  semantic_weight float default 1.0,
+  rrf_k int default 50
+)
+returns table (
+  id uuid,
+  title text,
+  problem text,
+  content text,
+  snippet text,
+  match_type text,
+  rrf_score float
+)
+language sql stable
+security invoker
+set search_path = public, extensions
+as $$
+  with full_text as (
+    select 
+      n.id,
+      n.title,
+      n.problem,
+      n.content,
+      ts_headline(
+        'english', 
+        n.content, 
+        websearch_to_tsquery('english', query_text),
+        'MaxWords=25, MinWords=10, StartSel=**, StopSel=**'
+      ) as snippet,
+      row_number() over (
+        order by ts_rank_cd(n.fts, websearch_to_tsquery('english', query_text)) desc
+      ) as rank_ix
+    from notes n
+    where n.user_id = auth.uid()
+      and n.deleted_at is null
+      and n.fts @@ websearch_to_tsquery('english', query_text)
+    order by ts_rank_cd(n.fts, websearch_to_tsquery('english', query_text)) desc
+    limit match_count * 2
+  ),
+  semantic as (
+    select 
+      n.id,
+      n.title,
+      n.problem,
+      n.content,
+      substring(n.content, 1, 150) as snippet,
+      row_number() over (order by n.embedding <=> query_embedding) as rank_ix
+    from notes n
+    where n.user_id = auth.uid()
+      and n.deleted_at is null
+      and n.embedding is not null
+    order by n.embedding <=> query_embedding
+    limit match_count * 2
+  )
+  select 
+    coalesce(ft.id, sem.id) as id,
+    coalesce(ft.title, sem.title) as title,
+    coalesce(ft.problem, sem.problem) as problem,
+    coalesce(ft.content, sem.content) as content,
+    coalesce(ft.snippet, sem.snippet) as snippet,
+    case 
+      when ft.id is not null and sem.id is not null then 'hybrid'
+      when ft.id is not null then 'keyword'
+      else 'semantic'
+    end as match_type,
+    (coalesce(1.0 / (rrf_k + ft.rank_ix), 0.0) * full_text_weight +
+     coalesce(1.0 / (rrf_k + sem.rank_ix), 0.0) * semantic_weight) as rrf_score
+  from full_text ft
+  full outer join semantic sem on ft.id = sem.id
+  order by 
+    (coalesce(1.0 / (rrf_k + ft.rank_ix), 0.0) * full_text_weight +
+     coalesce(1.0 / (rrf_k + sem.rank_ix), 0.0) * semantic_weight) desc
+  limit match_count;
+$$;
+
+comment on function hybrid_search is 'Hybrid search combining full-text keyword search with semantic vector search using Reciprocal Rank Fusion (RRF)';
+
 -- Find related notes by semantic similarity
 -- Filters by minimum similarity threshold to avoid showing unrelated notes
 create or replace function get_related_notes(

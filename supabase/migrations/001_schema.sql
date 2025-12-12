@@ -118,6 +118,15 @@ create index notes_embedding_idx on notes
   using hnsw (embedding vector_cosine_ops)
   with (m = 16, ef_construction = 64);
 
+-- Full-text search: auto-generated tsvector column combining title, problem, and content
+alter table notes add column if not exists fts tsvector 
+  generated always as (
+    to_tsvector('english', coalesce(title, '') || ' ' || coalesce(problem, '') || ' ' || coalesce(content, ''))
+  ) stored;
+
+-- GIN index for fast full-text search
+create index if not exists notes_fts_idx on notes using gin(fts);
+
 -- Conflicts indexes
 create index conflicts_user_status_idx on conflicts(user_id, status);
 create index conflicts_note_a_idx on conflicts(note_a_id);

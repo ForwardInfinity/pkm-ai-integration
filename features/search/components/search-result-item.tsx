@@ -1,6 +1,6 @@
 'use client'
 
-import { FileText, Search, Brain, Sparkles } from 'lucide-react'
+import { FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SearchDisplayResult } from '../types'
 
@@ -56,21 +56,12 @@ function highlightMatch(text: string, query: string): React.ReactNode {
   )
 }
 
-const matchTypeConfig = {
-  keyword: { icon: Search, label: 'Keyword', className: 'text-blue-600 dark:text-blue-400' },
-  semantic: { icon: Brain, label: 'Semantic', className: 'text-purple-600 dark:text-purple-400' },
-  hybrid: { icon: Sparkles, label: 'Hybrid', className: 'text-amber-600 dark:text-amber-400' },
-}
-
 export function SearchResultItem({
   result,
   query,
   isSelected,
   onClick,
 }: SearchResultItemProps) {
-  const matchConfig = matchTypeConfig[result.matchType]
-  const MatchIcon = matchConfig.icon
-
   return (
     <button
       type="button"
@@ -86,15 +77,9 @@ export function SearchResultItem({
           <FileText className="h-4 w-4 text-muted-foreground" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-foreground truncate">
-              {highlightMatch(result.title, query) || 'Untitled'}
-            </p>
-            <span className={cn('flex items-center gap-0.5 text-xs shrink-0', matchConfig.className)}>
-              <MatchIcon className="h-3 w-3" />
-              <span className="sr-only">{matchConfig.label}</span>
-            </span>
-          </div>
+          <p className="text-sm font-medium text-foreground truncate">
+            {highlightMatch(result.title, query) || 'Untitled'}
+          </p>
           {result.problem && (
             <p className="mt-1 text-sm text-muted-foreground line-clamp-1">
               {result.problem}

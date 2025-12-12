@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronRight, Brain, Zap, GitGraph, Sparkles, Layers, Search } from "lucide-react";
+import { ArrowRight, ChevronRight, Brain, Zap, GitGraph, Sparkles, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -142,7 +142,7 @@ export function LandingPage() {
                 </div>
                 <div className="mt-auto p-3 bg-white rounded-lg border border-black/5 shadow-sm">
                   <div className="font-medium mb-1">Conflict Detected</div>
-                  <div className="text-black/40 leading-snug">Note "Determinism" conflicts with "Free Will Axioms".</div>
+                  <div className="text-black/40 leading-snug">Note &ldquo;Determinism&rdquo; conflicts with &ldquo;Free Will Axioms&rdquo;.</div>
                 </div>
               </div>
               

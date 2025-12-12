@@ -107,7 +107,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           embedding: string | null
-          fts: unknown | null
+          fts: unknown
           id: string
           is_pinned: boolean
           problem: string | null
@@ -122,6 +122,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           embedding?: string | null
+          fts?: unknown
           id?: string
           is_pinned?: boolean
           problem?: string | null
@@ -136,6 +137,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           embedding?: string | null
+          fts?: unknown
           id?: string
           is_pinned?: boolean
           problem?: string | null
@@ -202,6 +204,25 @@ export type Database = {
           title: string
         }[]
       }
+      get_graph_conflicts: {
+        Args: never
+        Returns: {
+          conflict_type: string
+          id: string
+          note_a_id: string
+          note_b_id: string
+        }[]
+      }
+      get_graph_notes: {
+        Args: never
+        Returns: {
+          has_embedding: boolean
+          id: string
+          is_pinned: boolean
+          problem: string
+          title: string
+        }[]
+      }
       get_notes_by_tags: {
         Args: { filter_tags: string[]; include_deleted?: boolean }
         Returns: {
@@ -229,21 +250,21 @@ export type Database = {
       get_unresolved_conflict_count: { Args: never; Returns: number }
       hybrid_search: {
         Args: {
-          query_text: string
-          query_embedding: string
-          match_count?: number
           full_text_weight?: number
-          semantic_weight?: number
+          match_count?: number
+          query_embedding: string
+          query_text: string
           rrf_k?: number
+          semantic_weight?: number
         }
         Returns: {
-          id: string
-          title: string
-          problem: string
           content: string
-          snippet: string
+          id: string
           match_type: string
+          problem: string
           rrf_score: number
+          snippet: string
+          title: string
         }[]
       }
       search_notes: {

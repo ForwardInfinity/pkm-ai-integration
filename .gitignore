@@ -44,4 +44,6 @@ next-env.d.ts
 
 .mcp.json
 
-.claude/settings.local.json
+.claude/
+.cursor/
+.factory/

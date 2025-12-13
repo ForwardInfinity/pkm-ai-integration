@@ -106,11 +106,13 @@ Notes use IndexedDB for offline support and optimistic UI:
 **Tables** (all RLS-enabled): `profiles`, `notes`, `conflicts`, `note_links`
 
 **Key RPCs**:
-- `search_notes` — semantic search via embeddings
+- `hybrid_search` — combined full-text + semantic search via RRF
 - `get_related_notes` — find similar notes
 - `get_backlinks` — notes linking to target
 - `find_potential_conflicts` — conflict detection
 - `get_unresolved_conflict_count` — sidebar badge
+- `get_all_tags` — aggregate tag counts
+- `get_notes_by_tags` — filter notes by tags
 
 See `types/database.types.ts` for full schema and `supabase/migrations/` for SQL.
 

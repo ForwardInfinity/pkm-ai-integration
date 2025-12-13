@@ -246,20 +246,6 @@ export type Database = {
           rrf_score: number
         }[]
       }
-      search_notes: {
-        Args: {
-          match_count?: number
-          match_threshold?: number
-          query_embedding: string
-        }
-        Returns: {
-          content: string
-          id: string
-          problem: string
-          similarity: number
-          title: string
-        }[]
-      }
     }
     Enums: {
       conflict_status: "active" | "dismissed"

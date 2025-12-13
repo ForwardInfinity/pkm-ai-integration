@@ -42,8 +42,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# MCP
 .mcp.json
 
+# Claude, Cursor, Factory
 .claude/
 .cursor/
 .factory/
+
+# Documentation
+AGENTS.md
+CLAUDE.md
+DATA-MODEL.md
+PRD.md

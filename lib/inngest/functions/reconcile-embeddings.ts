@@ -27,11 +27,11 @@ export const reconcileEmbeddings = inngest.createFunction(
 
     // Step 1: Find notes needing embedding reconciliation
     const notesToReconcile = await step.run('find-stale-notes', async () => {
-      // Query 1: Stale pending/failed notes
-      const { data: staleNotes, error: staleError } = await supabase
+      // Query 1a: Stale notes with timestamp (pending/failed/processing older than cutoff)
+      const { data: staleWithTimestamp, error: staleError } = await supabase
         .from('notes')
         .select('id, title, problem, content')
-        .in('embedding_status', ['pending', 'failed'])
+        .in('embedding_status', ['pending', 'failed', 'processing'])
         .lt('embedding_requested_at', cutoffTime.toISOString())
         .is('deleted_at', null)
         .limit(BATCH_LIMIT)
@@ -39,6 +39,27 @@ export const reconcileEmbeddings = inngest.createFunction(
       if (staleError) {
         throw new Error(`Failed to fetch stale notes: ${staleError.message}`)
       }
+
+      // Query 1b: Notes with NULL embedding_requested_at (pending/failed only)
+      const existingIds = new Set((staleWithTimestamp || []).map((n) => n.id))
+      let nullTimestampNotes: typeof staleWithTimestamp = []
+
+      if (existingIds.size < BATCH_LIMIT) {
+        const { data, error } = await supabase
+          .from('notes')
+          .select('id, title, problem, content')
+          .in('embedding_status', ['pending', 'failed'])
+          .is('embedding_requested_at', null)
+          .is('deleted_at', null)
+          .limit(BATCH_LIMIT - existingIds.size)
+
+        if (error) {
+          throw new Error(`Failed to fetch null-timestamp notes: ${error.message}`)
+        }
+        nullTimestampNotes = (data || []).filter((n) => !existingIds.has(n.id))
+      }
+
+      const staleNotes = [...(staleWithTimestamp || []), ...nullTimestampNotes]
 
       // Query 2: Legacy notes (completed but no hash - need hash backfill)
       let remainingLimit = BATCH_LIMIT - (staleNotes?.length || 0)

@@ -49,9 +49,3 @@ next-env.d.ts
 .claude/
 .cursor/
 .factory/
-
-# Documentation
-AGENTS.md
-CLAUDE.md
-DATA-MODEL.md
-PRD.md

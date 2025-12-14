@@ -110,7 +110,7 @@ export const generateNoteEmbedding = inngest.createFunction(
         // Delete any existing chunks
         await supabase.from('note_chunks').delete().eq('note_id', noteId)
 
-        await supabase
+        const { data, error } = await supabase
           .from('notes')
           .update({
             embedding_status: 'completed',
@@ -120,6 +120,16 @@ export const generateNoteEmbedding = inngest.createFunction(
           })
           .eq('id', noteId)
           .eq('embedding_content_hash', expectedHash)
+          .select('id')
+          .maybeSingle()
+
+        if (error) {
+          throw new Error(`Failed to mark empty note as completed: ${error.message}`)
+        }
+        // Zero-row update is acceptable here - hash changed, will be reprocessed
+        if (!data) {
+          console.warn(`[Embedding] Hash changed before marking empty note ${noteId} as completed`)
+        }
       })
       return { skipped: true, reason: 'No content to embed', noteId }
     }
@@ -133,6 +143,7 @@ export const generateNoteEmbedding = inngest.createFunction(
         return embedMany({
           model: openrouter.textEmbeddingModel(EMBEDDING_MODEL),
           values: chunks.map((c) => c.text),
+          maxRetries: 0, // Let Inngest manage retries centrally
         })
       })
       embeddings = result.embeddings
@@ -140,7 +151,7 @@ export const generateNoteEmbedding = inngest.createFunction(
       // Mark as failed
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       await step.run('mark-failed', async () => {
-        await supabase
+        const { error: updateError } = await supabase
           .from('notes')
           .update({
             embedding_status: 'failed',
@@ -148,6 +159,11 @@ export const generateNoteEmbedding = inngest.createFunction(
           })
           .eq('id', noteId)
           .eq('embedding_content_hash', expectedHash)
+
+        if (updateError) {
+          console.error(`[Embedding] Failed to mark note ${noteId} as failed: ${updateError.message}`)
+        }
+        // Zero-row update is acceptable - hash changed, will be reprocessed
       })
       throw error // Re-throw for Inngest retry logic
     }
@@ -208,11 +224,11 @@ export const generateNoteEmbedding = inngest.createFunction(
     }
 
     // Step 7: Compute aggregate embedding and store on note
-    await step.run('store-aggregate-embedding', async () => {
+    const aggregateResult = await step.run('store-aggregate-embedding', async () => {
       // Compute mean pooling of all chunk embeddings
       const aggregateEmbedding = meanPoolEmbeddings(embeddings)
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('notes')
         .update({
           embedding: aggregateEmbedding as unknown as string,
@@ -223,11 +239,29 @@ export const generateNoteEmbedding = inngest.createFunction(
         })
         .eq('id', noteId)
         .eq('embedding_content_hash', expectedHash) // Only update if hash still matches
+        .select('id')
+        .maybeSingle()
 
       if (error) {
         throw new Error(`Failed to store aggregate embedding: ${error.message}`)
       }
+      if (!data) {
+        // Zero rows updated - hash changed during processing
+        // Chunks are already stored, but note won't be marked complete
+        // Log but don't throw - reconciler handles this case
+        console.warn(`[Embedding] Hash changed before final update for note ${noteId}`)
+        return { updated: false }
+      }
+      return { updated: true }
     })
+
+    if (!aggregateResult.updated) {
+      return {
+        skipped: true,
+        reason: 'Hash changed before storing aggregate embedding',
+        noteId,
+      }
+    }
 
     return {
       success: true,

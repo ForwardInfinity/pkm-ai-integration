@@ -50,11 +50,12 @@ export async function triggerEmbeddingGeneration(note: {
 
     if (updateError) {
       console.error('[Embedding] Failed to update note status:', updateError.message)
-      // Continue anyway - the event will still be sent
+      return { success: false, error: `Failed to update note status: ${updateError.message}` }
     }
 
     // Send event with noteId and expectedHash only (no content)
     await inngest.send({
+      id: `note-embedding:${note.id}:${expectedHash}`,
       name: 'note/embedding.requested',
       data: {
         noteId: note.id,

@@ -144,3 +144,14 @@
 .wikilink-suggestion-list {
   @apply z-50;
 }
+
+/* HashTag styles */
+.tiptap-editor .ProseMirror .hashtag {
+  @apply text-primary bg-primary/10 px-1 py-0.5 rounded font-medium cursor-pointer;
+  @apply hover:bg-primary/20 transition-colors;
+}
+
+/* HashTag suggestion dropdown */
+.hashtag-suggestion-list {
+  @apply z-50;
+}

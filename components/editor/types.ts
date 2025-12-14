@@ -1,4 +1,4 @@
-import type { WikiLinkSuggestionItem } from './extensions'
+import type { WikiLinkSuggestionItem, HashTagSuggestionItem } from './extensions'
 
 /**
  * WikiLink configuration for enabling note linking
@@ -10,6 +10,16 @@ export interface WikiLinkConfig {
   onWikiLinkClick?: (noteTitle: string) => void
   /** Callback to create a new note from autocomplete */
   onCreateNote?: (title: string) => Promise<string | null>
+}
+
+/**
+ * HashTag configuration for inline tag support
+ */
+export interface HashTagConfig {
+  /** Function to get available tags for autocomplete */
+  getTags: () => HashTagSuggestionItem[]
+  /** Callback when a hashtag is clicked (e.g., to filter notes) */
+  onHashTagClick?: (tag: string) => void
 }
 
 /**
@@ -36,4 +46,7 @@ export interface MarkdownEditorProps {
 
   /** WikiLink configuration for note linking (optional) */
   wikiLinkConfig?: WikiLinkConfig
+
+  /** HashTag configuration for inline tags (optional) */
+  hashTagConfig?: HashTagConfig
 }

@@ -7,7 +7,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
 import TaskList from '@tiptap/extension-task-list'
 import Suggestion from '@tiptap/suggestion'
-import { UnderlineMarkdown, HighlightMarkdown, WikiLink, createWikiLinkSuggestion } from './extensions'
+import { UnderlineMarkdown, HighlightMarkdown, WikiLink, createWikiLinkSuggestion, HashTag, createHashTagSuggestion } from './extensions'
 import TaskItem from '@tiptap/extension-task-item'
 import Typography from '@tiptap/extension-typography'
 import { useEffect, useRef, useMemo } from 'react'
@@ -24,6 +24,7 @@ export function MarkdownEditor({
   className,
   editable = true,
   wikiLinkConfig,
+  hashTagConfig,
 }: MarkdownEditorProps) {
   const initialContentRef = useRef(content)
   const hasInitializedRef = useRef(false)
@@ -93,8 +94,33 @@ export function MarkdownEditor({
       baseExtensions.push(WikiLink)
     }
 
+    // Add HashTag extension if configured
+    if (hashTagConfig) {
+      baseExtensions.push(
+        HashTag.configure({
+          onHashTagClick: hashTagConfig.onHashTagClick,
+        }).extend({
+          addProseMirrorPlugins() {
+            const originalPlugins = this.parent?.() ?? []
+            return [
+              ...originalPlugins,
+              Suggestion({
+                editor: this.editor,
+                ...createHashTagSuggestion({
+                  getTags: hashTagConfig.getTags,
+                }),
+              }),
+            ]
+          },
+        })
+      )
+    } else {
+      // Add basic HashTag without suggestion (still parses #tags from markdown)
+      baseExtensions.push(HashTag)
+    }
+
     return baseExtensions
-  }, [placeholder, wikiLinkConfig])
+  }, [placeholder, wikiLinkConfig, hashTagConfig])
 
   const editor = useEditor({
     editorProps: {

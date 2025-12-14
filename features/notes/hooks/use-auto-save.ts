@@ -18,6 +18,7 @@ interface SaveData {
   problem?: string | null
   content?: string
   wordCount?: number
+  tags?: string[]
 }
 
 export function useAutoSave({ noteId, onExternalChange }: UseAutoSaveOptions) {
@@ -90,8 +91,8 @@ export function useAutoSave({ noteId, onExternalChange }: UseAutoSaveOptions) {
             problem: localNote.problem,
             updated_at: new Date().toISOString(),
             word_count: localNote.wordCount,
-            // Preserve existing values instead of hardcoding
-            tags: existingNote?.tags ?? [],
+            // Use provided tags if present, otherwise preserve existing
+            tags: data.tags ?? existingNote?.tags ?? [],
             is_pinned: existingNote?.is_pinned ?? false,
           }
 

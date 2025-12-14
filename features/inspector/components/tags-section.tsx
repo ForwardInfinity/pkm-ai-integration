@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { Tag } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { InspectorSection } from './inspector-section'
@@ -10,7 +11,12 @@ interface TagsSectionProps {
 }
 
 export function TagsSection({ tags, noteId }: TagsSectionProps) {
+  const router = useRouter()
   const hasTags = tags.length > 0
+
+  const handleTagClick = (tag: string) => {
+    router.push(`/notes?tag=${encodeURIComponent(tag)}`)
+  }
 
   return (
     <InspectorSection
@@ -35,7 +41,8 @@ export function TagsSection({ tags, noteId }: TagsSectionProps) {
             <Badge
               key={tag}
               variant="secondary"
-              className="text-xs cursor-default"
+              className="text-xs cursor-pointer hover:bg-primary/20 hover:text-primary hover:scale-105 transition-all duration-150"
+              onClick={() => handleTagClick(tag)}
             >
               {tag}
             </Badge>

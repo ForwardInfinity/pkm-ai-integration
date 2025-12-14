@@ -9,6 +9,7 @@ export interface LocalNote {
   problem: string | null
   content: string
   wordCount: number
+  tags?: string[] // Extracted hashtags from content
   updatedAt: number // Local timestamp for ordering
   syncStatus: SyncStatus
   serverVersion?: string // updated_at from server for conflict detection

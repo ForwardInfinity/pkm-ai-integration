@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { nanoid } from 'nanoid'
 import { MarkdownEditor } from '@/components/editor'
 import { useNote, useNotes } from '../hooks'
+import { useAllTags } from '../hooks/use-tags'
 import { useAutoSave } from '../hooks/use-auto-save'
 import { useBeforeunloadSave } from '@/hooks/use-beforeunload-save'
 import { useNoteEditorStore, useTabsActions, useActiveTabId } from '@/stores'
@@ -17,7 +18,9 @@ import { NoteActionsDropdown } from './note-actions-dropdown'
 import { useReconstructProblem, useCleanNote, CleanDiffTitle, CleanDiffField, CleanDiffContent, CleanNoteActionBar, CleanNotePreviewModal } from '@/features/ai'
 import '@/components/editor/editor-styles.css'
 import type { LocalNote } from '@/lib/local-db'
-import type { WikiLinkConfig } from '@/components/editor/types'
+import type { WikiLinkConfig, HashTagConfig } from '@/components/editor/types'
+import { useRouter } from 'next/navigation'
+import { extractTagsFromMarkdown } from '@/lib/tags'
 
 interface NoteEditorProps {
   noteId: string
@@ -50,11 +53,23 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   // Notes list for wikilink autocomplete
   const { data: allNotes } = useNotes()
 
+  // All tags for hashtag autocomplete
+  const { data: allTags } = useAllTags()
+
+  // Router for tag click navigation
+  const router = useRouter()
+
   // Use ref to always get fresh notes data in callbacks
   const allNotesRef = useRef(allNotes)
   useEffect(() => {
     allNotesRef.current = allNotes
   }, [allNotes])
+
+  // Use ref for tags data
+  const allTagsRef = useRef(allTags)
+  useEffect(() => {
+    allTagsRef.current = allTags
+  }, [allTags])
 
   // WikiLink configuration for the editor
   // Using ref ensures getNotes always returns current data even after editor initialization
@@ -78,6 +93,21 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
       },
     }
   }, [openTab])
+
+  // HashTag configuration for the editor
+  const hashTagConfig = useMemo<HashTagConfig | undefined>(() => {
+    return {
+      getTags: () =>
+        (allTagsRef.current ?? []).map((t) => ({
+          tag: t.tag,
+          count: t.count,
+        })),
+      onHashTagClick: (tag: string) => {
+        // Navigate to notes list filtered by tag
+        router.push(`/notes?tag=${encodeURIComponent(tag)}`)
+      },
+    }
+  }, [router])
 
   // Local state for form fields
   const [title, setTitle] = useState('')
@@ -324,9 +354,12 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   const handleContentSave = useCallback(
     (markdown: string) => {
       setContent(markdown)
+      // Extract tags from markdown content
+      const tags = extractTagsFromMarkdown(markdown)
       save({
         content: markdown,
         wordCount: calculateWordCount(markdown),
+        tags,
       })
     },
     [save, calculateWordCount]
@@ -583,6 +616,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
               className={cn("min-h-[400px]", isCleaning && "opacity-70 pointer-events-none")}
               editable={!isCleaning}
               wikiLinkConfig={wikiLinkConfig}
+              hashTagConfig={hashTagConfig}
             />
           )}
         </div>

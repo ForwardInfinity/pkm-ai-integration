@@ -2,6 +2,7 @@
 
 import { ReactRenderer } from '@tiptap/react'
 import { SuggestionOptions, SuggestionProps } from '@tiptap/suggestion'
+import { PluginKey } from '@tiptap/pm/state'
 import tippy, { Instance as TippyInstance } from 'tippy.js'
 import {
   forwardRef,
@@ -137,10 +138,13 @@ export interface WikiLinkSuggestionConfig {
   onCreateNote?: (title: string) => Promise<string | null>
 }
 
+const WikiLinkSuggestionPluginKey = new PluginKey('wikilink-suggestion')
+
 export function createWikiLinkSuggestion(
   config: WikiLinkSuggestionConfig
 ): Omit<SuggestionOptions<WikiLinkSuggestionItem>, 'editor'> {
   return {
+    pluginKey: WikiLinkSuggestionPluginKey,
     char: '[[',
     allowSpaces: true,
     startOfLine: false,

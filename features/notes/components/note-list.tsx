@@ -1,16 +1,38 @@
 'use client'
 
 import { useMemo, useState, useCallback } from 'react'
-import { Pin, Loader2, FileText, Sparkles, CheckSquare } from 'lucide-react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { Pin, Loader2, FileText, Sparkles, CheckSquare, Tag, X } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { useNotes } from '../hooks'
+import { useNotesByTags } from '../hooks/use-tags'
 import { NoteListItem } from './note-list-item'
 import { EmptyState } from './empty-state'
 import { SelectionToolbar } from './selection-toolbar'
 
 export function NoteList() {
-  const { data: notes, isLoading, error } = useNotes()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const filterTag = searchParams.get('tag')
+
+  // Use filtered query when tag param is present, otherwise use all notes
+  const { data: allNotes, isLoading: isLoadingAll, error: errorAll } = useNotes()
+  const { data: filteredNotes, isLoading: isLoadingFiltered, error: errorFiltered } = useNotesByTags(
+    filterTag ? [filterTag] : [],
+    !!filterTag
+  )
+
+  // Select which data to use based on filter
+  const notes = filterTag ? filteredNotes : allNotes
+  const isLoading = filterTag ? isLoadingFiltered : isLoadingAll
+  const error = filterTag ? errorFiltered : errorAll
+
+  // Clear tag filter
+  const clearFilter = useCallback(() => {
+    router.push('/notes')
+  }, [router])
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -94,28 +116,45 @@ export function NoteList() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/5 ring-1 ring-primary/10">
-                  <Sparkles className="h-4 w-4 text-primary/70" />
+                  {filterTag ? (
+                    <Tag className="h-4 w-4 text-primary/70" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 text-primary/70" />
+                  )}
                 </div>
                 <div>
                   <h1 className="text-lg font-semibold tracking-tight text-foreground">
-                    Notes
+                    {filterTag ? 'Tagged Notes' : 'Notes'}
                   </h1>
                   <p className="text-xs text-muted-foreground">
                     {totalCount} {totalCount === 1 ? 'note' : 'notes'}
+                    {filterTag && ' with this tag'}
                   </p>
                 </div>
               </div>
-              {totalCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => selectionMode ? handleCancelSelection() : setSelectionMode(true)}
-                  className="h-8 gap-1.5 text-xs"
-                >
-                  <CheckSquare className="h-3.5 w-3.5" />
-                  {selectionMode ? 'Cancel' : 'Select'}
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {filterTag && (
+                  <Badge
+                    variant="secondary"
+                    className="gap-1.5 pr-1.5 cursor-pointer hover:bg-secondary/80"
+                    onClick={clearFilter}
+                  >
+                    <span>#{filterTag}</span>
+                    <X className="h-3 w-3" />
+                  </Badge>
+                )}
+                {totalCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => selectionMode ? handleCancelSelection() : setSelectionMode(true)}
+                    className="h-8 gap-1.5 text-xs"
+                  >
+                    <CheckSquare className="h-3.5 w-3.5" />
+                    {selectionMode ? 'Cancel' : 'Select'}
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </header>

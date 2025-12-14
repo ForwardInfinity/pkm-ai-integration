@@ -9,6 +9,7 @@ import {
 import { getBrowserQueryClient } from '@/app/providers'
 import { noteKeys } from '@/features/notes/hooks/use-notes'
 import { backlinkKeys } from '@/features/notes/hooks/use-backlinks'
+import { tagKeys } from '@/features/notes/hooks/use-tags'
 import type { NoteListItem, Note } from '@/features/notes/types'
 import { triggerEmbeddingGeneration } from '@/features/notes/actions/trigger-embedding'
 import { syncNoteLinks } from '@/features/notes/actions/sync-note-links'
@@ -224,6 +225,7 @@ class SyncQueue {
           problem: localNote.problem,
           content: localNote.content || '',
           word_count: localNote.wordCount || 0,
+          tags: item.data.tags ?? [],
         })
         .select()
         .single()
@@ -288,6 +290,14 @@ class SyncQueue {
           }
         })
         .catch(console.error)
+
+      // Invalidate tags cache if tags were added
+      if (item.data.tags && item.data.tags.length > 0) {
+        const queryClient = getBrowserQueryClient()
+        if (queryClient) {
+          queryClient.invalidateQueries({ queryKey: tagKeys.tags() })
+        }
+      }
     } else {
       // Update existing note
       let serverNoteId = item.noteId
@@ -312,6 +322,7 @@ class SyncQueue {
       if (item.data.problem !== undefined) updateData.problem = item.data.problem
       if (item.data.content !== undefined) updateData.content = item.data.content
       if (item.data.wordCount !== undefined) updateData.word_count = item.data.wordCount
+      if (item.data.tags !== undefined) updateData.tags = item.data.tags
 
       const { data: updated, error } = await supabase
         .from('notes')
@@ -372,6 +383,14 @@ class SyncQueue {
             }
           })
           .catch(console.error)
+      }
+
+      // Invalidate tags cache if tags were updated
+      if (item.data.tags !== undefined) {
+        const queryClient = getBrowserQueryClient()
+        if (queryClient) {
+          queryClient.invalidateQueries({ queryKey: tagKeys.tags() })
+        }
       }
     }
   }

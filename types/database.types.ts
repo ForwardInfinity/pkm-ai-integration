@@ -107,6 +107,12 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           embedding: string | null
+          embedding_content_hash: string | null
+          embedding_error: string | null
+          embedding_model: string | null
+          embedding_requested_at: string | null
+          embedding_status: string
+          embedding_updated_at: string | null
           fts: unknown | null
           id: string
           is_pinned: boolean
@@ -122,6 +128,12 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           embedding?: string | null
+          embedding_content_hash?: string | null
+          embedding_error?: string | null
+          embedding_model?: string | null
+          embedding_requested_at?: string | null
+          embedding_status?: string
+          embedding_updated_at?: string | null
           id?: string
           is_pinned?: boolean
           problem?: string | null
@@ -136,6 +148,12 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           embedding?: string | null
+          embedding_content_hash?: string | null
+          embedding_error?: string | null
+          embedding_model?: string | null
+          embedding_requested_at?: string | null
+          embedding_status?: string
+          embedding_updated_at?: string | null
           id?: string
           is_pinned?: boolean
           problem?: string | null

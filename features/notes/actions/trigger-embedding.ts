@@ -1,9 +1,13 @@
 'use server'
 
 import { inngest } from '@/lib/inngest/client'
+import { createClient } from '@/lib/supabase/server'
+import { hashNoteForEmbedding } from '@/lib/embedding'
 
 export type TriggerEmbeddingResult = {
   success: boolean
+  skipped?: boolean
+  reason?: string
   error?: string
 }
 
@@ -14,15 +18,50 @@ export async function triggerEmbeddingGeneration(note: {
   content: string
 }): Promise<TriggerEmbeddingResult> {
   try {
+    const supabase = await createClient()
+
+    // Compute expected content hash
+    const expectedHash = hashNoteForEmbedding(note)
+
+    // Optional optimization: check if already completed with same hash
+    const { data: existingNote } = await supabase
+      .from('notes')
+      .select('embedding_content_hash, embedding_status')
+      .eq('id', note.id)
+      .single()
+
+    if (
+      existingNote?.embedding_status === 'completed' &&
+      existingNote?.embedding_content_hash === expectedHash
+    ) {
+      return { success: true, skipped: true, reason: 'Embedding already up-to-date' }
+    }
+
+    // Update note: set status to pending, store expected hash
+    const { error: updateError } = await supabase
+      .from('notes')
+      .update({
+        embedding_status: 'pending',
+        embedding_requested_at: new Date().toISOString(),
+        embedding_content_hash: expectedHash,
+        embedding_error: null,
+      })
+      .eq('id', note.id)
+
+    if (updateError) {
+      console.error('[Embedding] Failed to update note status:', updateError.message)
+      // Continue anyway - the event will still be sent
+    }
+
+    // Send event with noteId and expectedHash only (no content)
     await inngest.send({
       name: 'note/embedding.requested',
       data: {
         noteId: note.id,
-        title: note.title,
-        problem: note.problem,
-        content: note.content,
+        expectedHash,
       },
     })
+
     return { success: true }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'

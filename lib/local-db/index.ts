@@ -22,6 +22,13 @@ export interface SyncQueueItem {
   data: Partial<LocalNote>
   timestamp: number
   retryCount: number
+  lastError?: string // Error message if sync failed after max retries
+}
+
+export interface IdMapping {
+  tempId: string // Primary key
+  serverId: string
+  createdAt: number
 }
 
 interface RefineryDB extends DBSchema {
@@ -35,10 +42,15 @@ interface RefineryDB extends DBSchema {
     value: SyncQueueItem
     indexes: { 'by-note-id': string }
   }
+  idMappings: {
+    key: string
+    value: IdMapping
+    indexes: { 'by-server-id': string }
+  }
 }
 
 const DB_NAME = 'refinery-notes'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let dbPromise: Promise<IDBPDatabase<RefineryDB>> | null = null
 
@@ -64,6 +76,14 @@ export async function getDB(): Promise<IDBPDatabase<RefineryDB>> {
           })
           syncStore.createIndex('by-note-id', 'noteId')
         }
+
+        // ID mappings store (added in v2)
+        if (!db.objectStoreNames.contains('idMappings')) {
+          const mappingStore = db.createObjectStore('idMappings', {
+            keyPath: 'tempId',
+          })
+          mappingStore.createIndex('by-server-id', 'serverId')
+        }
       },
     })
   }
@@ -73,7 +93,11 @@ export async function getDB(): Promise<IDBPDatabase<RefineryDB>> {
 
 export async function clearDatabase(): Promise<void> {
   const db = await getDB()
-  const tx = db.transaction(['notes', 'syncQueue'], 'readwrite')
-  await Promise.all([tx.objectStore('notes').clear(), tx.objectStore('syncQueue').clear()])
+  const tx = db.transaction(['notes', 'syncQueue', 'idMappings'], 'readwrite')
+  await Promise.all([
+    tx.objectStore('notes').clear(),
+    tx.objectStore('syncQueue').clear(),
+    tx.objectStore('idMappings').clear(),
+  ])
   await tx.done
 }

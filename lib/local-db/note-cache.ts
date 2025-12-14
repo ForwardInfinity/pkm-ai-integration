@@ -53,20 +53,53 @@ export async function updateNoteIdMapping(
   serverId: string
 ): Promise<void> {
   const db = await getDB()
-  const note = await db.get('notes', tempId)
+  // Use transaction for atomic delete+put to prevent race conditions
+  const tx = db.transaction('notes', 'readwrite')
+  const store = tx.objectStore('notes')
+
+  const note = await store.get(tempId)
   if (note) {
-    // Delete the temp entry
-    await db.delete('notes', tempId)
-    // Create new entry with server ID
-    await db.put('notes', {
+    // Delete and put within same transaction (atomic)
+    await store.delete(tempId)
+    await store.put({
       ...note,
       id: serverId,
       tempId: undefined,
     })
   }
+
+  await tx.done
 }
 
 export async function getAllLocalNotes(): Promise<LocalNote[]> {
   const db = await getDB()
   return db.getAll('notes')
+}
+
+// ID Mapping helpers for temp→server ID persistence
+
+export async function saveIdMapping(
+  tempId: string,
+  serverId: string
+): Promise<void> {
+  const db = await getDB()
+  await db.put('idMappings', {
+    tempId,
+    serverId,
+    createdAt: Date.now(),
+  })
+}
+
+export async function getIdMapping(
+  tempId: string
+): Promise<string | undefined> {
+  const db = await getDB()
+  const mapping = await db.get('idMappings', tempId)
+  return mapping?.serverId
+}
+
+export async function getAllIdMappings(): Promise<Map<string, string>> {
+  const db = await getDB()
+  const mappings = await db.getAll('idMappings')
+  return new Map(mappings.map((m) => [m.tempId, m.serverId]))
 }

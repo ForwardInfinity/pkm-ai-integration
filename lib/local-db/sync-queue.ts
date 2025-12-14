@@ -5,6 +5,9 @@ import {
   markNoteSynced,
   markNoteError,
   updateNoteIdMapping,
+  saveIdMapping,
+  getIdMapping,
+  getAllIdMappings,
 } from './note-cache'
 import { getBrowserQueryClient } from '@/app/providers'
 import { noteKeys } from '@/features/notes/hooks/use-notes'
@@ -30,11 +33,23 @@ class SyncQueue {
   private enqueueLocks: Map<string, Promise<void>> = new Map()
   // Track notes with pending CREATE operations to prevent duplicates
   private pendingCreates: Set<string> = new Set()
+  // Track if we've loaded persisted mappings from IndexedDB
+  private initialized = false
 
   constructor() {
     if (typeof window !== 'undefined') {
       this.initBroadcastChannel()
     }
+  }
+
+  private async initialize(): Promise<void> {
+    if (this.initialized) return
+    // Load persisted mappings from IndexedDB
+    const mappings = await getAllIdMappings()
+    for (const [tempId, serverId] of mappings) {
+      this.tempIdToServerIdMap.set(tempId, serverId)
+    }
+    this.initialized = true
   }
 
   private initBroadcastChannel(): void {
@@ -49,8 +64,10 @@ class SyncQueue {
           // Update local state via listeners
           this.notifyListeners(noteId, data)
         } else if (type === 'id-mapping') {
-          // Update temp ID mapping
+          // Update in-memory map
           this.tempIdToServerIdMap.set(data.tempId, data.serverId)
+          // Persist to IndexedDB (fire-and-forget, don't block message handling)
+          saveIdMapping(data.tempId, data.serverId).catch(console.error)
         }
       }
     } catch {
@@ -104,6 +121,12 @@ class SyncQueue {
     return this.tempIdToServerIdMap.get(tempId)
   }
 
+  async getFailedItems(): Promise<SyncQueueItem[]> {
+    const db = await getDB()
+    const items = await db.getAll('syncQueue')
+    return items.filter((item) => item.retryCount >= MAX_RETRIES)
+  }
+
   async enqueue(noteId: string, data: Partial<LocalNote>): Promise<void> {
     // Chain operations for the same noteId to prevent race conditions
     const prev = this.enqueueLocks.get(noteId) ?? Promise.resolve()
@@ -119,6 +142,7 @@ class SyncQueue {
   }
 
   private async enqueueInternal(noteId: string, data: Partial<LocalNote>): Promise<void> {
+    await this.initialize()
     const db = await getDB()
 
     // Check if there's already a pending item for this note
@@ -174,10 +198,14 @@ class SyncQueue {
     this.isProcessing = true
 
     try {
+      await this.initialize()
       const db = await getDB()
       const items = await db.getAll('syncQueue')
 
       for (const item of items) {
+        // Skip items that have already permanently failed
+        if (item.lastError) continue
+
         try {
           await this.processItem(item)
           // Remove from queue on success
@@ -185,6 +213,23 @@ class SyncQueue {
             await db.delete('syncQueue', item.id)
           }
         } catch (error) {
+          // Handle both Error instances and Supabase error objects ({ message: string })
+          const errorMessage =
+            error instanceof Error
+              ? error.message
+              : typeof error === 'object' &&
+                  error !== null &&
+                  'message' in error
+                ? String((error as { message: unknown }).message)
+                : String(error)
+
+          // Special handling for unmapped temp IDs - don't count against retries
+          if (errorMessage === 'TEMP_ID_NOT_MAPPED') {
+            console.debug('Deferring sync for unmapped temp ID:', item.noteId)
+            // Keep in queue without incrementing retry count - will be retried later
+            continue
+          }
+
           console.error('Sync error for note:', item.noteId, error)
           // Increment retry count
           if (item.retryCount < MAX_RETRIES) {
@@ -193,11 +238,12 @@ class SyncQueue {
               retryCount: item.retryCount + 1,
             })
           } else {
-            // Mark as error and remove from queue
+            // Mark note and queue item as error (keep for potential recovery)
             await markNoteError(item.noteId)
-            if (item.id !== undefined) {
-              await db.delete('syncQueue', item.id)
-            }
+            await db.put('syncQueue', {
+              ...item,
+              lastError: errorMessage,
+            })
           }
         }
       }
@@ -232,9 +278,10 @@ class SyncQueue {
 
       if (error) throw error
 
-      // Update local ID mapping
+      // Update local ID mapping (persist to IDB for cross-session reliability)
       await updateNoteIdMapping(item.noteId, created.id)
       this.tempIdToServerIdMap.set(item.noteId, created.id)
+      await saveIdMapping(item.noteId, created.id)
       this.broadcastIdMapping(item.noteId, created.id)
 
       // Clear from pendingCreates since creation succeeded
@@ -304,13 +351,22 @@ class SyncQueue {
 
       // Check if this was originally a temp ID
       if (item.noteId.startsWith('temp_')) {
-        const mappedId = this.tempIdToServerIdMap.get(item.noteId)
+        let mappedId = this.tempIdToServerIdMap.get(item.noteId)
+
+        // If not in memory, try loading from IndexedDB (may have arrived late)
+        if (!mappedId) {
+          mappedId = await getIdMapping(item.noteId)
+          if (mappedId) {
+            this.tempIdToServerIdMap.set(item.noteId, mappedId)
+          }
+        }
+
         if (mappedId) {
           serverNoteId = mappedId
         } else {
-          // Note hasn't been created yet, skip this update
-          // It will be handled when the create completes
-          return
+          // Mapping not available yet - throw special error to KEEP item in queue
+          // This prevents silent data loss when mapping hasn't arrived yet
+          throw new Error('TEMP_ID_NOT_MAPPED')
         }
       }
 

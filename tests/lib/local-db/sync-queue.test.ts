@@ -52,6 +52,9 @@ vi.mock('@/lib/local-db/note-cache', () => ({
   markNoteSynced: vi.fn(),
   markNoteError: vi.fn(),
   updateNoteIdMapping: vi.fn(),
+  saveIdMapping: vi.fn(),
+  getIdMapping: vi.fn(),
+  getAllIdMappings: vi.fn().mockResolvedValue(new Map()),
 }))
 
 describe('sync-queue', () => {
@@ -219,9 +222,9 @@ describe('sync-queue', () => {
       expect(putCall[1].retryCount).toBe(1)
     })
 
-    it('should mark note as error after max retries', async () => {
+    it('should mark note as error and preserve queue item with lastError after max retries', async () => {
       const { markNoteError } = await import('@/lib/local-db/note-cache')
-      
+
       const queueItem: SyncQueueItem = {
         id: 1,
         noteId: 'server-uuid-123',
@@ -241,7 +244,13 @@ describe('sync-queue', () => {
       await syncQueue.processQueue()
 
       expect(markNoteError).toHaveBeenCalledWith('server-uuid-123')
-      expect(mockDB.delete).toHaveBeenCalledWith('syncQueue', 1)
+      // Item should be preserved with lastError, not deleted
+      expect(mockDB.put).toHaveBeenCalled()
+      const putCall = mockDB.put.mock.calls.find(
+        (call) => call[0] === 'syncQueue' && call[1].lastError
+      )
+      expect(putCall).toBeDefined()
+      expect(putCall![1].lastError).toBe('Server error')
     })
   })
 
@@ -283,7 +292,7 @@ describe('sync-queue', () => {
     it('should notify listeners on enqueue', async () => {
       const syncQueue = getSyncQueue()
       const listener = vi.fn()
-      
+
       syncQueue.addListener(listener)
       await syncQueue.enqueue('note-123', { title: 'Test' })
 
@@ -294,9 +303,133 @@ describe('sync-queue', () => {
     it('should return unsubscribe function', () => {
       const syncQueue = getSyncQueue()
       const listener = vi.fn()
-      
+
       const unsubscribe = syncQueue.addListener(listener)
       expect(typeof unsubscribe).toBe('function')
+    })
+  })
+
+  describe('temp ID mapping persistence (Phase C)', () => {
+    it('should NOT delete queue item when UPDATE has unmapped temp ID', async () => {
+      const { getIdMapping } = await import('@/lib/local-db/note-cache')
+      // Return undefined - no mapping exists
+      ;(getIdMapping as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
+
+      const queueItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'temp_unmapped',
+        operation: 'update',
+        data: { title: 'Updated Title' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+
+      mockDB.getAll.mockResolvedValue([queueItem])
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      // Queue item should NOT be deleted - it should remain for retry
+      expect(mockDB.delete).not.toHaveBeenCalledWith('syncQueue', 1)
+      // Also should NOT increment retry count for TEMP_ID_NOT_MAPPED
+      const retryPutCall = mockDB.put.mock.calls.find(
+        (call) => call[0] === 'syncQueue' && call[1].retryCount === 1
+      )
+      expect(retryPutCall).toBeUndefined()
+    })
+
+    it('should process UPDATE successfully when mapping exists in IndexedDB', async () => {
+      const { getIdMapping } = await import('@/lib/local-db/note-cache')
+      // Return mapping from IDB
+      ;(getIdMapping as ReturnType<typeof vi.fn>).mockResolvedValue('server-uuid-mapped')
+
+      const queueItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'temp_with_mapping',
+        operation: 'update',
+        data: { title: 'Updated Title' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+
+      mockDB.getAll.mockResolvedValue([queueItem])
+      mockSupabaseChain.single.mockResolvedValue({
+        data: {
+          id: 'server-uuid-mapped',
+          title: 'Updated Title',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        error: null,
+      })
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      // Should have called update with the mapped server ID
+      expect(mockSupabaseChain.update).toHaveBeenCalled()
+      expect(mockSupabaseChain.eq).toHaveBeenCalledWith('id', 'server-uuid-mapped')
+      // Queue item should be deleted on success
+      expect(mockDB.delete).toHaveBeenCalledWith('syncQueue', 1)
+    })
+
+    it('should skip items with lastError (permanently failed)', async () => {
+      const queueItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'server-uuid-123',
+        operation: 'update',
+        data: { title: 'Updated Title' },
+        timestamp: Date.now(),
+        retryCount: 3,
+        lastError: 'Previous server error',
+      }
+
+      mockDB.getAll.mockResolvedValue([queueItem])
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      // Should not attempt to update - item is skipped
+      expect(mockSupabaseChain.update).not.toHaveBeenCalled()
+      // Should not delete or modify the item
+      expect(mockDB.delete).not.toHaveBeenCalledWith('syncQueue', 1)
+    })
+
+    it('should persist mapping after CREATE succeeds', async () => {
+      const { saveIdMapping } = await import('@/lib/local-db/note-cache')
+
+      const localNote: LocalNote = {
+        id: 'temp_new',
+        title: 'New Note',
+        problem: null,
+        content: 'Content',
+        wordCount: 1,
+        updatedAt: Date.now(),
+        syncStatus: 'pending',
+        tempId: 'temp_new',
+      }
+
+      const queueItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'temp_new',
+        operation: 'create',
+        data: { title: 'New Note' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+
+      mockDB.getAll.mockResolvedValue([queueItem])
+      ;(getNoteLocally as ReturnType<typeof vi.fn>).mockResolvedValue(localNote)
+
+      mockSupabaseChain.single.mockResolvedValue({
+        data: { id: 'server-uuid-created', title: 'New Note', updated_at: '2024-01-01T00:00:00Z' },
+        error: null,
+      })
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      // Should persist the mapping to IndexedDB
+      expect(saveIdMapping).toHaveBeenCalledWith('temp_new', 'server-uuid-created')
     })
   })
 })

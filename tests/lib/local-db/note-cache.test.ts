@@ -1,6 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { LocalNote } from '@/lib/local-db'
 
+// Mock transaction store
+const mockStore = {
+  get: vi.fn(),
+  put: vi.fn(),
+  delete: vi.fn(),
+}
+
+const mockTx = {
+  objectStore: vi.fn(() => mockStore),
+  done: Promise.resolve(),
+}
+
 // Mock the idb module
 const mockDB = {
   get: vi.fn(),
@@ -8,6 +20,7 @@ const mockDB = {
   delete: vi.fn(),
   getAll: vi.fn(),
   getAllFromIndex: vi.fn(),
+  transaction: vi.fn(() => mockTx),
 }
 
 vi.mock('idb', () => ({
@@ -25,6 +38,9 @@ import {
   markNoteError,
   updateNoteIdMapping,
   getAllLocalNotes,
+  saveIdMapping,
+  getIdMapping,
+  getAllIdMappings,
 } from '@/lib/local-db/note-cache'
 
 describe('note-cache', () => {
@@ -45,6 +61,12 @@ describe('note-cache', () => {
     mockDB.delete.mockResolvedValue(undefined)
     mockDB.getAll.mockResolvedValue([])
     mockDB.getAllFromIndex.mockResolvedValue([])
+    // Reset transaction mocks
+    mockStore.get.mockResolvedValue(undefined)
+    mockStore.put.mockResolvedValue(undefined)
+    mockStore.delete.mockResolvedValue(undefined)
+    mockTx.objectStore.mockReturnValue(mockStore)
+    mockTx.done = Promise.resolve()
   })
 
   describe('saveNoteLocally', () => {
@@ -152,14 +174,17 @@ describe('note-cache', () => {
   })
 
   describe('updateNoteIdMapping', () => {
-    it('should migrate note from temp ID to server ID', async () => {
+    it('should migrate note from temp ID to server ID using atomic transaction', async () => {
       const tempNote = { ...mockNote, id: 'temp_123', tempId: 'temp_123' }
-      mockDB.get.mockResolvedValue(tempNote)
+      mockStore.get.mockResolvedValue(tempNote)
 
       await updateNoteIdMapping('temp_123', 'server-uuid')
 
-      expect(mockDB.delete).toHaveBeenCalledWith('notes', 'temp_123')
-      expect(mockDB.put).toHaveBeenCalledWith('notes', {
+      // Verify transaction was used for atomic operation
+      expect(mockDB.transaction).toHaveBeenCalledWith('notes', 'readwrite')
+      expect(mockTx.objectStore).toHaveBeenCalledWith('notes')
+      expect(mockStore.delete).toHaveBeenCalledWith('temp_123')
+      expect(mockStore.put).toHaveBeenCalledWith({
         ...tempNote,
         id: 'server-uuid',
         tempId: undefined,
@@ -167,12 +192,13 @@ describe('note-cache', () => {
     })
 
     it('should do nothing if temp note does not exist', async () => {
-      mockDB.get.mockResolvedValue(undefined)
+      mockStore.get.mockResolvedValue(undefined)
 
       await updateNoteIdMapping('non-existent', 'server-uuid')
 
-      expect(mockDB.delete).not.toHaveBeenCalled()
-      expect(mockDB.put).not.toHaveBeenCalled()
+      expect(mockDB.transaction).toHaveBeenCalledWith('notes', 'readwrite')
+      expect(mockStore.delete).not.toHaveBeenCalled()
+      expect(mockStore.put).not.toHaveBeenCalled()
     })
   })
 
@@ -193,6 +219,68 @@ describe('note-cache', () => {
       const result = await getAllLocalNotes()
 
       expect(result).toEqual([])
+    })
+  })
+
+  describe('ID Mapping helpers (Phase C)', () => {
+    describe('saveIdMapping', () => {
+      it('should save temp→server ID mapping to idMappings store', async () => {
+        await saveIdMapping('temp_123', 'server-uuid')
+
+        expect(mockDB.put).toHaveBeenCalledWith('idMappings', {
+          tempId: 'temp_123',
+          serverId: 'server-uuid',
+          createdAt: expect.any(Number),
+        })
+      })
+    })
+
+    describe('getIdMapping', () => {
+      it('should return server ID for existing temp ID', async () => {
+        mockDB.get.mockResolvedValue({
+          tempId: 'temp_123',
+          serverId: 'server-uuid',
+          createdAt: Date.now(),
+        })
+
+        const result = await getIdMapping('temp_123')
+
+        expect(mockDB.get).toHaveBeenCalledWith('idMappings', 'temp_123')
+        expect(result).toBe('server-uuid')
+      })
+
+      it('should return undefined for non-existent temp ID', async () => {
+        mockDB.get.mockResolvedValue(undefined)
+
+        const result = await getIdMapping('non-existent')
+
+        expect(result).toBeUndefined()
+      })
+    })
+
+    describe('getAllIdMappings', () => {
+      it('should return all mappings as a Map', async () => {
+        mockDB.getAll.mockResolvedValue([
+          { tempId: 'temp_1', serverId: 'server-a', createdAt: Date.now() },
+          { tempId: 'temp_2', serverId: 'server-b', createdAt: Date.now() },
+        ])
+
+        const result = await getAllIdMappings()
+
+        expect(mockDB.getAll).toHaveBeenCalledWith('idMappings')
+        expect(result).toBeInstanceOf(Map)
+        expect(result.get('temp_1')).toBe('server-a')
+        expect(result.get('temp_2')).toBe('server-b')
+      })
+
+      it('should return empty Map when no mappings exist', async () => {
+        mockDB.getAll.mockResolvedValue([])
+
+        const result = await getAllIdMappings()
+
+        expect(result).toBeInstanceOf(Map)
+        expect(result.size).toBe(0)
+      })
     })
   })
 })

@@ -36,7 +36,7 @@ app/                    # Next.js App Router (routes only)
   (auth)/               # Public: /login, /sign-up, /forgot-password
   (dashboard)/          # Protected: /notes, /conflicts, /graph, /trash
   (admin)/              # Admin: /admin
-  api/                  # API routes (auth callbacks, inngest webhook)
+  api/                  # API routes (auth callbacks, inngest webhook)
 features/               # Feature modules (domain logic)
   [domain]/actions/     # Server actions
   [domain]/components/  # Domain-specific UI
@@ -44,15 +44,16 @@ features/               # Feature modules (domain logic)
   [domain]/types.ts     # TypeScript interfaces
 components/             # Shared components
   ui/                   # shadcn/ui — Do NOT modify
-  editor/               # Tiptap editor components
-  layout/               # App shell, sidebar, header
+  editor/               # Tiptap editor components
+  layout/               # App shell, sidebar, header
 lib/
   supabase/             # Supabase clients (server.ts, client.ts)
   inngest/              # Background job client + functions
   local-db/             # IndexedDB cache + sync queue
-  db/validation/        # Zod schemas for DB entities
-config/                 # Site config, navigation definitions
-hooks/                  # Shared hooks (debounce, beforeunload)
+  embedding/            # Content hashing, chunking, mean pooling
+  db/validation/        # Zod schemas for DB entities
+config/                 # Site config, navigation definitions
+hooks/                  # Shared hooks (debounce, beforeunload)
 stores/                 # Zustand stores
 tests/                  # Mirrors feature structure
 types/database.types.ts # Generated Supabase types
@@ -77,9 +78,21 @@ Server vs client usage differs critically:
 ### Local-First Sync
 
 Notes use IndexedDB for offline support and optimistic UI:
-- `lib/local-db/note-cache.ts` — local note storage
+- `lib/local-db/index.ts` — IndexedDB schema (notes, syncQueue, idMappings)
+- `lib/local-db/note-cache.ts` — local note storage + ID mapping persistence
 - `lib/local-db/sync-queue.ts` — background sync to Supabase
 - Pattern: save locally first → queue sync → update on success
+- Temp→server ID mappings persist in IndexedDB for cross-session reliability
+
+### Embeddings
+
+Notes are chunked (2000 chars, 200 overlap) and stored in `note_chunks`:
+- `features/notes/actions/trigger-embedding.ts` — computes hash, sends Inngest event
+- `lib/inngest/functions/generate-embedding.ts` — hash-guarded chunked embedding
+- `lib/inngest/functions/reconcile-embeddings.ts` — 5-min cron for stale recovery
+- `lib/embedding/` — chunker, content-hash, mean pooling utilities
+
+Idempotency: content hash guards all writes. Notes track `embedding_status` ('pending'→'processing'→'completed'|'failed'). RPCs use chunk-level search for full semantic coverage.
 
 ### Component Placement
 
@@ -90,7 +103,7 @@ Notes use IndexedDB for offline support and optimistic UI:
 
 ## Database
 
-**Tables** (all RLS-enabled): `profiles`, `notes`, `conflicts`, `note_links`
+**Tables** (all RLS-enabled): `profiles`, `notes`, `note_chunks`, `conflicts`, `note_links`
 
 **Key RPCs**: `hybrid_search`, `get_related_notes`, `get_backlinks`, `find_potential_conflicts`, `get_unresolved_conflict_count`, `get_all_tags`, `get_notes_by_tags`
 
@@ -98,7 +111,7 @@ Notes use IndexedDB for offline support and optimistic UI:
 
 - Vercel AI SDK with `@openrouter/ai-sdk-provider`
 - AI actions go in `features/[domain]/` as server actions
-- Embeddings: OpenAI text-embedding-3-small (1536 dimensions)
+- Embeddings: Chunked with mean pooling via `text-embedding-3-small` (1536 dims)
 - Background processing via Inngest client in `lib/inngest/client.ts`
 
 ## Additional Context

@@ -90,12 +90,13 @@ Notes use IndexedDB for offline support and optimistic UI:
 
 ### Embeddings
 
-Long notes are chunked (2000 chars, 200 overlap) and stored in `note_chunks`:
-- `lib/embedding/` — chunker, content-hash, mean pooling utilities
+Notes are chunked (2000 chars, 200 overlap) and stored in `note_chunks`:
+- `features/notes/actions/trigger-embedding.ts` — computes hash, sends Inngest event
 - `lib/inngest/functions/generate-embedding.ts` — hash-guarded chunked embedding
 - `lib/inngest/functions/reconcile-embeddings.ts` — 5-min cron for stale recovery
+- `lib/embedding/` — chunker, content-hash, mean pooling utilities
 
-Content hash ensures idempotency: embedding writes are conditional on hash match.
+Idempotency: content hash guards all writes. Notes track `embedding_status` ('pending'→'processing'→'completed'|'failed'). RPCs use chunk-level search for full semantic coverage.
 
 ### Component Placement
 

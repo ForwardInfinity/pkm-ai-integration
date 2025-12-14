@@ -395,7 +395,9 @@ describe('sync-queue', () => {
     })
 
     it('should persist mapping after CREATE succeeds', async () => {
-      const { saveIdMapping } = await import('@/lib/local-db/note-cache')
+      const { saveIdMapping, getIdMapping } = await import('@/lib/local-db/note-cache')
+      // Ensure no existing mapping (so CREATE proceeds)
+      ;(getIdMapping as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
 
       const localNote: LocalNote = {
         id: 'temp_new',
@@ -430,6 +432,181 @@ describe('sync-queue', () => {
 
       // Should persist the mapping to IndexedDB
       expect(saveIdMapping).toHaveBeenCalledWith('temp_new', 'server-uuid-created')
+    })
+  })
+
+  describe('enqueue recovery (fix 1.1)', () => {
+    it('should clear lastError and reset retryCount when re-enqueuing a failed item', async () => {
+      const failedItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'note-123',
+        operation: 'update',
+        data: { title: 'Old Title' },
+        timestamp: Date.now() - 60000,
+        retryCount: 3,
+        lastError: 'Server error',
+      }
+      mockDB.getAllFromIndex.mockResolvedValue([failedItem])
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.enqueue('note-123', { title: 'New Title' })
+
+      expect(mockDB.put).toHaveBeenCalledWith('syncQueue', expect.objectContaining({
+        noteId: 'note-123',
+        data: expect.objectContaining({ title: 'New Title' }),
+        retryCount: 0,
+        lastError: undefined,
+      }))
+    })
+  })
+
+  describe('cross-tab locking (fix 1.2)', () => {
+    it('should use Web Locks API when available', async () => {
+      const mockLockRequest = vi.fn().mockImplementation(
+        async (_name: string, _options: object, callback: (lock: object | null) => Promise<void>) => {
+          await callback({ name: 'refinery-sync-queue-lock' })
+        }
+      )
+      vi.stubGlobal('navigator', { locks: { request: mockLockRequest } })
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      expect(mockLockRequest).toHaveBeenCalledWith(
+        'refinery-sync-queue-lock',
+        { ifAvailable: true },
+        expect.any(Function)
+      )
+    })
+
+    it('should skip processing if lock is not available (another tab holds it)', async () => {
+      const mockLockRequest = vi.fn().mockImplementation(
+        async (_name: string, _options: object, callback: (lock: object | null) => Promise<void>) => {
+          await callback(null) // Lock not available
+        }
+      )
+      vi.stubGlobal('navigator', { locks: { request: mockLockRequest } })
+
+      const queueItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'test-note',
+        operation: 'update',
+        data: { title: 'Test' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+      mockDB.getAll.mockResolvedValue([queueItem])
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      // No processing should occur - lock was not acquired
+      expect(mockDB.delete).not.toHaveBeenCalled()
+    })
+
+    it('should fallback to local processing if Web Locks unavailable', async () => {
+      vi.stubGlobal('navigator', { locks: undefined })
+
+      const queueItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'server-id',
+        operation: 'update',
+        data: { title: 'Test' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+      mockDB.getAll.mockResolvedValue([queueItem])
+      mockSupabaseChain.single.mockResolvedValue({
+        data: { id: 'server-id', updated_at: new Date().toISOString() },
+        error: null,
+      })
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      // Should still process (fallback to local lock)
+      expect(mockDB.delete).toHaveBeenCalledWith('syncQueue', 1)
+    })
+  })
+
+  describe('duplicate CREATE prevention (fix 1.3)', () => {
+    it('should skip CREATE if ID mapping already exists (created by another tab)', async () => {
+      const { getIdMapping } = await import('@/lib/local-db/note-cache')
+      ;(getIdMapping as ReturnType<typeof vi.fn>).mockResolvedValue('server-uuid-from-other-tab')
+
+      const createItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'temp_123',
+        operation: 'create',
+        data: { title: 'New Note' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+      mockDB.getAll.mockResolvedValue([createItem])
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      // Should NOT call insert - another tab already created
+      expect(mockSupabaseChain.insert).not.toHaveBeenCalled()
+      // But should delete from queue (success path - no work needed)
+      expect(mockDB.delete).toHaveBeenCalledWith('syncQueue', 1)
+    })
+  })
+
+  describe('TEMP_ID_NOT_MAPPED timeout (fix 1.4)', () => {
+    it('should keep item in queue if within timeout window', async () => {
+      const { getIdMapping, markNoteError } = await import('@/lib/local-db/note-cache')
+      ;(getIdMapping as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
+
+      const recentItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'temp_recent',
+        operation: 'update',
+        data: { title: 'Update' },
+        timestamp: Date.now() - 60000, // 1 minute old - within 5 min timeout
+        retryCount: 0,
+      }
+      mockDB.getAll.mockResolvedValue([recentItem])
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      // Should NOT be marked as error
+      expect(markNoteError).not.toHaveBeenCalled()
+      // Should NOT have lastError set
+      const timeoutPutCall = mockDB.put.mock.calls.find(
+        (call) => call[0] === 'syncQueue' && call[1].lastError === 'TEMP_ID_NOT_MAPPED_TIMEOUT'
+      )
+      expect(timeoutPutCall).toBeUndefined()
+      // Should NOT be deleted
+      expect(mockDB.delete).not.toHaveBeenCalled()
+    })
+
+    it('should mark as permanent failure if TEMP_ID_NOT_MAPPED exceeds timeout', async () => {
+      const { getIdMapping, markNoteError } = await import('@/lib/local-db/note-cache')
+      ;(getIdMapping as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
+
+      const oldItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'temp_old',
+        operation: 'update',
+        data: { title: 'Update' },
+        timestamp: Date.now() - 6 * 60 * 1000, // 6 minutes old - exceeds 5 min timeout
+        retryCount: 0,
+      }
+      mockDB.getAll.mockResolvedValue([oldItem])
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      // Should mark note as error
+      expect(markNoteError).toHaveBeenCalledWith('temp_old')
+      // Should set lastError
+      expect(mockDB.put).toHaveBeenCalledWith('syncQueue', expect.objectContaining({
+        noteId: 'temp_old',
+        lastError: 'TEMP_ID_NOT_MAPPED_TIMEOUT',
+      }))
     })
   })
 })

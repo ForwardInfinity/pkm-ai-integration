@@ -20,10 +20,12 @@ import { syncNoteLinks } from '@/features/notes/actions/sync-note-links'
 const SYNC_DEBOUNCE_MS = 2000
 const MAX_RETRIES = 3
 const BROADCAST_CHANNEL_NAME = 'refinery-notes-sync'
+const TEMP_ID_MAPPING_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
 type NoteChangeListener = (noteId: string, data: Partial<LocalNote>) => void
 
 class SyncQueue {
+  private static readonly QUEUE_LOCK_NAME = 'refinery-sync-queue-lock'
   private debounceTimer: ReturnType<typeof setTimeout> | null = null
   private isProcessing = false
   private listeners: Set<NoteChangeListener> = new Set()
@@ -150,11 +152,14 @@ class SyncQueue {
 
     if (existingItems.length > 0) {
       // Update the existing queue item with merged data
+      // Reset retryCount and clear lastError to allow reprocessing of failed items
       const existing = existingItems[0]
       await db.put('syncQueue', {
         ...existing,
         data: { ...existing.data, ...data },
         timestamp: Date.now(),
+        retryCount: 0,
+        lastError: undefined,
       })
     } else {
       // Determine operation: only CREATE if temp_ AND not already created/pending
@@ -194,6 +199,34 @@ class SyncQueue {
   }
 
   async processQueue(): Promise<void> {
+    // Skip if already processing in this tab
+    if (this.isProcessing) return
+
+    // Use Web Locks API for cross-tab mutual exclusion
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+      try {
+        await navigator.locks.request(
+          SyncQueue.QUEUE_LOCK_NAME,
+          { ifAvailable: true }, // Non-blocking: skip if another tab holds lock
+          async (lock) => {
+            if (lock) {
+              await this.processQueueInternal()
+            }
+            // If lock is null, another tab is processing - silently skip
+          }
+        )
+      } catch {
+        // Web Locks not available (SSR, older browser) - fallback to local-only lock
+        console.debug('Web Locks unavailable, using local lock only')
+        await this.processQueueInternal()
+      }
+    } else {
+      // No Web Locks (SSR context) - use local lock only
+      await this.processQueueInternal()
+    }
+  }
+
+  private async processQueueInternal(): Promise<void> {
     if (this.isProcessing) return
     this.isProcessing = true
 
@@ -223,10 +256,22 @@ class SyncQueue {
                 ? String((error as { message: unknown }).message)
                 : String(error)
 
-          // Special handling for unmapped temp IDs - don't count against retries
+          // Special handling for unmapped temp IDs - time-boxed deferral
           if (errorMessage === 'TEMP_ID_NOT_MAPPED') {
-            console.debug('Deferring sync for unmapped temp ID:', item.noteId)
-            // Keep in queue without incrementing retry count - will be retried later
+            const ageMs = Date.now() - item.timestamp
+
+            if (ageMs > TEMP_ID_MAPPING_TIMEOUT_MS) {
+              // Mapping never arrived - mark as permanent failure
+              console.error('TEMP_ID_NOT_MAPPED timeout for:', item.noteId, `(${Math.round(ageMs / 1000)}s old)`)
+              await markNoteError(item.noteId)
+              await db.put('syncQueue', {
+                ...item,
+                lastError: 'TEMP_ID_NOT_MAPPED_TIMEOUT',
+              })
+            } else {
+              // Still within timeout window - keep for later retry
+              console.debug('Deferring sync for unmapped temp ID:', item.noteId, `(${Math.round(ageMs / 1000)}s old)`)
+            }
             continue
           }
 
@@ -256,6 +301,16 @@ class SyncQueue {
     const supabase = createClient()
 
     if (item.operation === 'create') {
+      // Re-check if another tab already created this note
+      const existingServerId = await getIdMapping(item.noteId)
+      if (existingServerId) {
+        // Another tab completed the create - skip and let the delete logic handle cleanup
+        this.tempIdToServerIdMap.set(item.noteId, existingServerId)
+        this.pendingCreates.delete(item.noteId)
+        console.debug('Skipping CREATE - already created by another tab:', item.noteId, '->', existingServerId)
+        return // Success - item will be deleted from queue by caller
+      }
+
       // Create new note on server
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')

@@ -13,10 +13,12 @@ erDiagram
     profiles ||--o{ notes : "owns"
     profiles ||--o{ conflicts : "owns"
     profiles ||--o{ note_links : "owns"
+    profiles ||--o{ note_chunks : "owns"
     notes ||--o{ conflicts : "note_a"
     notes ||--o{ conflicts : "note_b"
     notes ||--o{ note_links : "source"
     notes ||--o{ note_links : "target"
+    notes ||--o{ note_chunks : "chunked into"
 
     profiles {
         uuid id PK
@@ -34,10 +36,29 @@ erDiagram
         string[] tags
         boolean is_pinned
         int word_count
-        vector embedding "1536-dim"
+        vector embedding "1536-dim (mean-pooled)"
+        tsvector fts "generated full-text search"
+        embedding_status embedding_status "pending|processing|completed|failed"
+        timestamp embedding_requested_at "nullable"
+        timestamp embedding_updated_at "nullable"
+        string embedding_content_hash "SHA-256 for idempotency"
+        string embedding_error "nullable"
+        string embedding_model "nullable"
         timestamp deleted_at "nullable (soft delete)"
         timestamp created_at
         timestamp updated_at
+    }
+
+    note_chunks {
+        uuid id PK
+        uuid note_id FK
+        uuid user_id FK
+        int chunk_index "zero-based"
+        int content_start "char offset start"
+        int content_end "char offset end"
+        text text_chunk
+        vector embedding "1536-dim"
+        timestamp created_at
     }
 
     conflicts {
@@ -62,23 +83,42 @@ erDiagram
 
 ### Enums
 
-| Enum | Values |
-|------|--------|
-| `user_role` | `user`, `admin` |
-| `conflict_type` | `contradiction`, `tension` |
-| `conflict_status` | `active`, `dismissed` |
+| Enum | Values | Description |
+|------|--------|-------------|
+| `user_role` | `user`, `admin` | Access control role |
+| `conflict_type` | `contradiction`, `tension` | Direct vs indirect conflict |
+| `conflict_status` | `active`, `dismissed` | Resolution status |
+| `embedding_status` | `pending`, `processing`, `completed`, `failed` | Embedding generation state |
+
+### Key Constraints
+
+| Table | Constraint | Description |
+|-------|------------|-------------|
+| `conflicts` | `note_a_id < note_b_id` | Prevents duplicate pairs (A,B) and (B,A) |
+| `note_links` | `source_note_id != target_note_id` | No self-links |
+| `note_chunks` | `unique(note_id, chunk_index)` | Ordered chunks per note |
+| `note_chunks` | `content_start >= 0 and content_end > content_start` | Valid character offsets |
 
 ### Key Database Functions (RPCs)
 
 | Function | Purpose |
 |----------|---------|
-| `hybrid_search` | Combined full-text + semantic search via RRF |
-| `get_related_notes` | Find similar notes by embedding |
+| `hybrid_search` | Combined full-text + chunk-based semantic search via RRF |
+| `get_related_notes` | Find similar notes using chunk-to-chunk similarity |
 | `get_backlinks` | Notes linking to target |
-| `find_potential_conflicts` | Detect conflicts between notes |
+| `find_potential_conflicts` | Detect conflicts using chunk-level embeddings (0.8 threshold) |
 | `get_unresolved_conflict_count` | Count for sidebar badge |
 | `get_all_tags` | Aggregate tag counts |
 | `get_notes_by_tags` | Filter notes by tags |
+
+### Trigger Functions
+
+| Function | Trigger | Purpose |
+|----------|---------|---------|
+| `update_updated_at` | Before UPDATE | Auto-update `updated_at` timestamp |
+| `handle_new_user` | After INSERT on auth.users | Auto-create profile |
+| `on_note_soft_delete` | After UPDATE on notes | Delete active conflicts when note trashed |
+| `on_note_restore` | After UPDATE on notes | Clean up stale dismissed conflicts |
 
 ---
 
@@ -107,6 +147,7 @@ erDiagram
         boolean is_pinned
         int word_count
         string embedding
+        embedding_status embedding_status
         string deleted_at
     }
 
@@ -132,7 +173,9 @@ erDiagram
         string title
         string problem
         string content
-        float similarity
+        string snippet
+        string match_type "hybrid|keyword|semantic"
+        float rrf_score
     }
 
     BacklinkNote {
@@ -281,6 +324,7 @@ Offline-first architecture for notes with background sync to Supabase.
 erDiagram
     LocalNote ||--o{ SyncQueueItem : "queued for sync"
     LocalNote }o--|| Note : "syncs to server"
+    IdMapping ||--|| LocalNote : "maps temp to server id"
 
     LocalNote {
         string id PK
@@ -302,6 +346,11 @@ erDiagram
         number timestamp
         int retryCount
     }
+
+    IdMapping {
+        string tempId PK
+        string serverId
+    }
 ```
 
 ### Sync Flow
@@ -318,6 +367,50 @@ erDiagram
 | DB Setup | `lib/local-db/index.ts` |
 | Note Cache | `lib/local-db/note-cache.ts` |
 | Sync Queue | `lib/local-db/sync-queue.ts` |
+
+---
+
+## 5. Embedding Pipeline
+
+Chunked embedding system for full semantic coverage of long notes.
+
+```mermaid
+flowchart LR
+    A[Note Updated] --> B[Compute Content Hash]
+    B --> C{Hash Changed?}
+    C -->|No| D[Skip - Idempotent]
+    C -->|Yes| E[Set status: pending]
+    E --> F[Trigger Inngest Event]
+    F --> G[Generate Embedding Function]
+    G --> H[Chunk Content]
+    H --> I[2000 chars, 200 overlap]
+    I --> J[Generate Chunk Embeddings]
+    J --> K[Store in note_chunks]
+    K --> L[Mean Pool → Note Embedding]
+    L --> M[Set status: completed]
+```
+
+### Embedding Configuration
+
+| Setting | Value |
+|---------|-------|
+| Model | `text-embedding-3-small` |
+| Dimensions | 1536 |
+| Chunk Size | 2000 characters |
+| Chunk Overlap | 200 characters |
+| Conflict Threshold | 0.8 similarity |
+| Related Notes Threshold | 0.3 similarity |
+
+### File Locations
+
+| Module | File |
+|--------|------|
+| Trigger Action | `features/notes/actions/trigger-embedding.ts` |
+| Generate Function | `lib/inngest/functions/generate-embedding.ts` |
+| Reconcile Cron | `lib/inngest/functions/reconcile-embeddings.ts` |
+| Content Hash | `lib/embedding/content-hash.ts` |
+| Chunker | `lib/embedding/chunker.ts` |
+| Mean Pooling | `lib/embedding/mean-pooling.ts` |
 
 ---
 

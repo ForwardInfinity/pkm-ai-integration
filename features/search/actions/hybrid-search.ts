@@ -3,21 +3,41 @@
 import { createClient } from '@/lib/supabase/server'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { embed } from 'ai'
+import { LRUCache } from 'lru-cache'
 import type { HybridSearchResult } from '../types'
 
 const MAX_RESULTS = 10
+const DEFAULT_SIMILARITY_THRESHOLD = 0.3
+
+// LRU cache for query embeddings to avoid repeated API calls
+// TTL: 10 minutes, Max: 100 entries
+const embeddingCache = new LRUCache<string, number[]>({
+  max: 100,
+  ttl: 1000 * 60 * 10,
+})
+
+// Normalize query for cache key consistency
+function normalizeQuery(query: string): string {
+  return query.toLowerCase().trim().replace(/\s+/g, ' ')
+}
 
 export interface HybridSearchOptions {
   limit?: number
   fullTextWeight?: number
   semanticWeight?: number
+  similarityThreshold?: number
 }
 
 export async function hybridSearch(
   query: string,
   options: HybridSearchOptions = {}
 ): Promise<HybridSearchResult[]> {
-  const { limit = MAX_RESULTS, fullTextWeight = 1.0, semanticWeight = 1.0 } = options
+  const {
+    limit = MAX_RESULTS,
+    fullTextWeight = 1.0,
+    semanticWeight = 1.0,
+    similarityThreshold = DEFAULT_SIMILARITY_THRESHOLD,
+  } = options
 
   if (!query.trim()) {
     return []
@@ -30,12 +50,20 @@ export async function hybridSearch(
 
   const supabase = await createClient()
 
-  // Generate embedding for the query using the same model as note embeddings
-  const openrouter = createOpenRouter({ apiKey })
-  const { embedding } = await embed({
-    model: openrouter.textEmbeddingModel('openai/text-embedding-3-small'),
-    value: query,
-  })
+  // Check cache for existing embedding
+  const cacheKey = normalizeQuery(query)
+  let embedding = embeddingCache.get(cacheKey)
+
+  if (!embedding) {
+    // Generate embedding for the query using the same model as note embeddings
+    const openrouter = createOpenRouter({ apiKey })
+    const result = await embed({
+      model: openrouter.textEmbeddingModel('openai/text-embedding-3-small'),
+      value: query,
+    })
+    embedding = result.embedding as number[]
+    embeddingCache.set(cacheKey, embedding)
+  }
 
   // Call hybrid_search RPC
   const { data, error } = await supabase.rpc('hybrid_search', {
@@ -44,6 +72,7 @@ export async function hybridSearch(
     match_count: limit,
     full_text_weight: fullTextWeight,
     semantic_weight: semanticWeight,
+    similarity_threshold: similarityThreshold,
   })
 
   if (error) {

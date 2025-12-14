@@ -104,13 +104,26 @@ create trigger on_note_restore
 
 -- Hybrid search combining full-text search with semantic vector search
 -- Uses Reciprocal Rank Fusion (RRF) to merge results from both methods
+--
+-- Parameters:
+--   query_text: The search query string for full-text search
+--   query_embedding: Vector embedding of the query for semantic search (1536 dims for text-embedding-3-small)
+--   match_count: Maximum number of results to return (default: 10)
+--   full_text_weight: Weight for full-text search results in RRF scoring (default: 1.0)
+--   semantic_weight: Weight for semantic search results in RRF scoring (default: 1.0)
+--   rrf_k: Smoothing constant for RRF scoring to prevent extreme scores (default: 50)
+--   similarity_threshold: Minimum cosine similarity (0-1) for semantic results (default: 0.3)
+--
+-- Called from: features/search/actions/hybrid-search.ts
+-- Embeddings cached client-side via LRU cache to reduce API calls
 create or replace function hybrid_search(
   query_text text,
   query_embedding vector(1536),
   match_count int default 10,
   full_text_weight float default 1.0,
   semantic_weight float default 1.0,
-  rrf_k int default 50
+  rrf_k int default 50,
+  similarity_threshold float default 0.3
 )
 returns table (
   id uuid,
@@ -126,14 +139,14 @@ security invoker
 set search_path = public, extensions
 as $$
   with full_text as (
-    select 
+    select
       n.id,
       n.title,
       n.problem,
       n.content,
       ts_headline(
-        'english', 
-        n.content, 
+        'english',
+        n.content,
         websearch_to_tsquery('english', query_text),
         'MaxWords=25, MinWords=10, StartSel=**, StopSel=**'
       ) as snippet,
@@ -148,7 +161,7 @@ as $$
     limit match_count * 2
   ),
   semantic as (
-    select 
+    select
       n.id,
       n.title,
       n.problem,
@@ -159,16 +172,17 @@ as $$
     where n.user_id = auth.uid()
       and n.deleted_at is null
       and n.embedding is not null
+      and 1 - (n.embedding <=> query_embedding) >= similarity_threshold
     order by n.embedding <=> query_embedding
     limit match_count * 2
   )
-  select 
+  select
     coalesce(ft.id, sem.id) as id,
     coalesce(ft.title, sem.title) as title,
     coalesce(ft.problem, sem.problem) as problem,
     coalesce(ft.content, sem.content) as content,
     coalesce(ft.snippet, sem.snippet) as snippet,
-    case 
+    case
       when ft.id is not null and sem.id is not null then 'hybrid'
       when ft.id is not null then 'keyword'
       else 'semantic'
@@ -177,13 +191,13 @@ as $$
      coalesce(1.0 / (rrf_k + sem.rank_ix), 0.0) * semantic_weight) as rrf_score
   from full_text ft
   full outer join semantic sem on ft.id = sem.id
-  order by 
+  order by
     (coalesce(1.0 / (rrf_k + ft.rank_ix), 0.0) * full_text_weight +
      coalesce(1.0 / (rrf_k + sem.rank_ix), 0.0) * semantic_weight) desc
   limit match_count;
 $$;
 
-comment on function hybrid_search is 'Hybrid search combining full-text keyword search with semantic vector search using Reciprocal Rank Fusion (RRF)';
+comment on function hybrid_search is 'Hybrid search combining full-text keyword search with semantic vector search using Reciprocal Rank Fusion (RRF). Includes similarity_threshold to filter low-relevance semantic results.';
 
 -- Find related notes by semantic similarity
 -- Filters by minimum similarity threshold to avoid showing unrelated notes

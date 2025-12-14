@@ -235,6 +235,7 @@ export type Database = {
           full_text_weight?: number
           semantic_weight?: number
           rrf_k?: number
+          similarity_threshold?: number
         }
         Returns: {
           id: string

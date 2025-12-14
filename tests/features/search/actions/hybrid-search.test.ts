@@ -88,6 +88,7 @@ describe('hybridSearch', () => {
         match_count: 10,
         full_text_weight: 1.0,
         semantic_weight: 1.0,
+        similarity_threshold: 0.3,
       })
 
       expect(result).toEqual(mockResults)
@@ -116,17 +117,57 @@ describe('hybridSearch', () => {
 
       const { hybridSearch } = await import('@/features/search/actions/hybrid-search')
 
-      await hybridSearch('test', { 
-        fullTextWeight: 2.0, 
-        semanticWeight: 0.5 
+      await hybridSearch('test', {
+        fullTextWeight: 2.0,
+        semanticWeight: 0.5
       })
 
-      expect(mockRpc).toHaveBeenCalledWith('hybrid_search', 
-        expect.objectContaining({ 
+      expect(mockRpc).toHaveBeenCalledWith('hybrid_search',
+        expect.objectContaining({
           full_text_weight: 2.0,
-          semantic_weight: 0.5 
+          semantic_weight: 0.5
         })
       )
+    })
+
+    it('should respect custom similarity threshold option', async () => {
+      const mockEmbedding = new Array(1536).fill(0.1)
+      mockEmbed.mockResolvedValueOnce({ embedding: mockEmbedding })
+      mockRpc.mockResolvedValueOnce({ data: [], error: null })
+      mockCreateClient.mockResolvedValueOnce({ rpc: mockRpc })
+
+      const { hybridSearch } = await import('@/features/search/actions/hybrid-search')
+
+      await hybridSearch('test', { similarityThreshold: 0.5 })
+
+      expect(mockRpc).toHaveBeenCalledWith('hybrid_search',
+        expect.objectContaining({ similarity_threshold: 0.5 })
+      )
+    })
+
+    it('should use cached embedding for repeated queries', async () => {
+      const mockEmbedding = new Array(1536).fill(0.1)
+      mockEmbed.mockResolvedValue({ embedding: mockEmbedding })
+      mockRpc.mockResolvedValue({ data: [], error: null })
+      mockCreateClient.mockResolvedValue({ rpc: mockRpc })
+
+      const { hybridSearch } = await import('@/features/search/actions/hybrid-search')
+
+      // First call - should generate embedding
+      await hybridSearch('test query')
+      expect(mockEmbed).toHaveBeenCalledTimes(1)
+
+      // Second call with same query - should use cache
+      await hybridSearch('test query')
+      expect(mockEmbed).toHaveBeenCalledTimes(1) // Still 1, not 2
+
+      // Third call with normalized equivalent query - should use cache
+      await hybridSearch('  TEST   QUERY  ')
+      expect(mockEmbed).toHaveBeenCalledTimes(1) // Still 1
+
+      // Fourth call with different query - should generate new embedding
+      await hybridSearch('different query')
+      expect(mockEmbed).toHaveBeenCalledTimes(2)
     })
 
     it('should return empty array when no results', async () => {

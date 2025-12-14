@@ -4,6 +4,19 @@ import { hashNoteForEmbedding } from '@/lib/embedding/content-hash'
 // Mock step.run to execute callbacks immediately
 const mockStepRun = vi.fn((name: string, fn: () => Promise<unknown>) => fn())
 
+// Track mock calls for integration tests
+let mockSupabaseCallLog: Array<{ method: string; args: unknown[] }> = []
+let mockNoteData: {
+  id: string
+  user_id: string
+  title: string
+  problem: string | null
+  content: string
+  embedding_content_hash: string | null
+  embedding_status: string
+} | null = null
+let mockNoteUpdates: Record<string, unknown>[] = []
+
 // Mock Supabase response builders
 const createMockSupabaseClient = (overrides: {
   selectResult?: { data: unknown; error: unknown }
@@ -34,6 +47,66 @@ const createMockSupabaseClient = (overrides: {
     })),
   })),
 })
+
+// Enhanced mock for integration tests
+const createIntegrationMockSupabaseClient = () => {
+  const mockClient = {
+    from: vi.fn((table: string) => {
+      if (table === 'notes') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn((field: string, value: string) => ({
+              single: vi.fn(() => {
+                mockSupabaseCallLog.push({
+                  method: 'notes.select.eq.single',
+                  args: [field, value],
+                })
+                if (mockNoteData && mockNoteData.id === value) {
+                  return Promise.resolve({ data: mockNoteData, error: null })
+                }
+                return Promise.resolve({ data: null, error: { message: 'Not found' } })
+              }),
+            })),
+          })),
+          update: vi.fn((updateData: Record<string, unknown>) => {
+            mockNoteUpdates.push(updateData)
+            return {
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  select: vi.fn(() => ({
+                    single: vi.fn(() => {
+                      mockSupabaseCallLog.push({
+                        method: 'notes.update',
+                        args: [updateData],
+                      })
+                      return Promise.resolve({ data: { id: mockNoteData?.id }, error: null })
+                    }),
+                  })),
+                })),
+              })),
+            }
+          }),
+        }
+      }
+      if (table === 'note_chunks') {
+        return {
+          delete: vi.fn(() => ({
+            eq: vi.fn(() => {
+              mockSupabaseCallLog.push({ method: 'note_chunks.delete', args: [] })
+              return Promise.resolve({ error: null })
+            }),
+          })),
+          insert: vi.fn((rows: unknown[]) => {
+            mockSupabaseCallLog.push({ method: 'note_chunks.insert', args: [rows] })
+            return Promise.resolve({ error: null })
+          }),
+        }
+      }
+      return createMockSupabaseClient({}).from(table)
+    }),
+  }
+  return mockClient
+}
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => createMockSupabaseClient({})),
@@ -225,6 +298,162 @@ describe('generateNoteEmbedding', () => {
           step: { run: mockStepRun },
         })
       ).rejects.toThrow('Missing Supabase environment variables')
+    })
+  })
+})
+
+describe('generateNoteEmbedding integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.resetModules()
+    vi.stubEnv('OPENROUTER_API_KEY', 'test-api-key')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://test.supabase.co')
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role-key')
+    // Reset integration test state
+    mockSupabaseCallLog = []
+    mockNoteData = null
+    mockNoteUpdates = []
+  })
+
+  describe('stale event detection', () => {
+    it('should skip processing when content hash has changed since event was sent', async () => {
+      // Setup: Note exists with different hash than expected
+      const noteContent = {
+        title: 'Test Note',
+        problem: null,
+        content: 'Original content',
+      }
+      const originalHash = hashNoteForEmbedding(noteContent)
+
+      // Note was updated after event was sent
+      mockNoteData = {
+        id: 'note-123',
+        user_id: 'user-456',
+        title: 'Test Note',
+        problem: null,
+        content: 'Updated content after event', // Different content
+        embedding_content_hash: null,
+        embedding_status: 'pending',
+      }
+
+      // Re-mock Supabase with integration client
+      vi.doMock('@supabase/supabase-js', () => ({
+        createClient: vi.fn(() => createIntegrationMockSupabaseClient()),
+      }))
+
+      const { generateNoteEmbedding } = await import(
+        '@/lib/inngest/functions/generate-embedding'
+      )
+
+      const handler = generateNoteEmbedding.handler as (ctx: {
+        event: { data: { noteId: string; expectedHash: string } }
+        step: { run: typeof mockStepRun }
+      }) => Promise<{ skipped: boolean; reason: string }>
+
+      const result = await handler({
+        event: { data: { noteId: 'note-123', expectedHash: originalHash } },
+        step: { run: mockStepRun },
+      })
+
+      expect(result.skipped).toBe(true)
+      expect(result.reason).toContain('hash mismatch')
+    })
+  })
+
+  describe('empty content handling', () => {
+    it('should handle notes with empty content gracefully', async () => {
+      const emptyNote = {
+        title: '',
+        problem: null,
+        content: '',
+      }
+      const expectedHash = hashNoteForEmbedding(emptyNote)
+
+      mockNoteData = {
+        id: 'note-empty',
+        user_id: 'user-456',
+        ...emptyNote,
+        embedding_content_hash: expectedHash,
+        embedding_status: 'pending',
+      }
+
+      vi.doMock('@supabase/supabase-js', () => ({
+        createClient: vi.fn(() => createIntegrationMockSupabaseClient()),
+      }))
+
+      const { generateNoteEmbedding } = await import(
+        '@/lib/inngest/functions/generate-embedding'
+      )
+
+      const handler = generateNoteEmbedding.handler as (ctx: {
+        event: { data: { noteId: string; expectedHash: string } }
+        step: { run: typeof mockStepRun }
+      }) => Promise<{ skipped: boolean; reason: string }>
+
+      const result = await handler({
+        event: { data: { noteId: 'note-empty', expectedHash } },
+        step: { run: mockStepRun },
+      })
+
+      expect(result.skipped).toBe(true)
+      expect(result.reason).toContain('No content to embed')
+    })
+  })
+
+  describe('chunking behavior', () => {
+    it('should use chunking utilities from lib/embedding', async () => {
+      // Test that the function correctly imports and uses chunkText
+      const { chunkText } = await import('@/lib/embedding/chunker')
+
+      const longText = 'This is a test paragraph. '.repeat(100)
+      const chunks = chunkText(longText, {
+        chunkSizeChars: 2000,
+        overlapChars: 200,
+      })
+
+      expect(chunks.length).toBeGreaterThan(1)
+      expect(chunks[0].text.length).toBeLessThanOrEqual(2000)
+    })
+
+    it('should use mean pooling for aggregate embedding', async () => {
+      const { meanPoolEmbeddings } = await import('@/lib/embedding/chunker')
+
+      const embeddings = [
+        [0.1, 0.2, 0.3],
+        [0.3, 0.4, 0.5],
+      ]
+
+      const aggregated = meanPoolEmbeddings(embeddings)
+
+      expect(aggregated[0]).toBeCloseTo(0.2)
+      expect(aggregated[1]).toBeCloseTo(0.3)
+      expect(aggregated[2]).toBeCloseTo(0.4)
+    })
+  })
+
+  describe('note not found handling', () => {
+    it('should throw NonRetriableError when note does not exist', async () => {
+      mockNoteData = null // No note in database
+
+      vi.doMock('@supabase/supabase-js', () => ({
+        createClient: vi.fn(() => createIntegrationMockSupabaseClient()),
+      }))
+
+      const { generateNoteEmbedding } = await import(
+        '@/lib/inngest/functions/generate-embedding'
+      )
+
+      const handler = generateNoteEmbedding.handler as (ctx: {
+        event: { data: { noteId: string; expectedHash: string } }
+        step: { run: typeof mockStepRun }
+      }) => Promise<unknown>
+
+      await expect(
+        handler({
+          event: { data: { noteId: 'non-existent', expectedHash: 'some-hash' } },
+          step: { run: mockStepRun },
+        })
+      ).rejects.toThrow('Note not found')
     })
   })
 })

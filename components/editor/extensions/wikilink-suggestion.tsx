@@ -60,6 +60,8 @@ const WikiLinkSuggestionList = forwardRef<
 
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }) => {
+      if (totalItems === 0) return false
+
       if (event.key === 'ArrowUp') {
         setSelectedIndex((prev) => (prev + totalItems - 1) % totalItems)
         return true

@@ -12,6 +12,7 @@ import {
   useCallback,
 } from 'react'
 import { cn } from '@/lib/utils'
+import { isValidTagName } from '@/lib/tags'
 import { Tag, Plus } from 'lucide-react'
 import type { TagCount } from '@/features/notes/types'
 
@@ -42,7 +43,7 @@ const HashTagSuggestionList = forwardRef<
     (item) => item.tag.toLowerCase() === normalizedQuery
   )
   // Only show create option if query is valid (starts with letter, alphanumeric/hyphen/underscore)
-  const isValidTag = /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(normalizedQuery)
+  const isValidTag = isValidTagName(normalizedQuery)
   const showCreateOption = normalizedQuery.length > 0 && !hasExactMatch && isValidTag
   const totalItems = items.length + (showCreateOption ? 1 : 0)
 
@@ -63,6 +64,8 @@ const HashTagSuggestionList = forwardRef<
 
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }) => {
+      if (totalItems === 0) return false
+
       if (event.key === 'ArrowUp') {
         setSelectedIndex((prev) => (prev + totalItems - 1) % totalItems)
         return true

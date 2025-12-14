@@ -194,26 +194,3 @@ export const HashTag = Node.create<HashTagOptions>({
     ]
   },
 })
-
-// Helper to extract hashtags from markdown text
-export function extractHashTagsFromMarkdown(markdown: string): string[] {
-  // Match #tagname patterns, but not inside code blocks or URLs
-  const codeBlockRegex = /```[\s\S]*?```|`[^`]+`/g
-  const urlRegex = /https?:\/\/[^\s]+/g
-
-  // Remove code blocks and URLs first
-  const cleanedMarkdown = markdown
-    .replace(codeBlockRegex, '')
-    .replace(urlRegex, '')
-
-  // Match hashtags: # followed by letter, then alphanumeric/underscore/hyphen
-  const hashtagRegex = /(?:^|[\s])#([a-zA-Z][a-zA-Z0-9_-]*)/g
-  const tags: Set<string> = new Set()
-  let match
-
-  while ((match = hashtagRegex.exec(cleanedMarkdown)) !== null) {
-    tags.add(match[1].toLowerCase())
-  }
-
-  return Array.from(tags).sort()
-}

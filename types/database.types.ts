@@ -62,6 +62,50 @@ export type Database = {
           },
         ]
       }
+      note_chunks: {
+        Row: {
+          chunk_index: number
+          content_end: number
+          content_start: number
+          created_at: string
+          embedding: string
+          id: string
+          note_id: string
+          text_chunk: string
+          user_id: string
+        }
+        Insert: {
+          chunk_index: number
+          content_end: number
+          content_start: number
+          created_at?: string
+          embedding: string
+          id?: string
+          note_id: string
+          text_chunk: string
+          user_id: string
+        }
+        Update: {
+          chunk_index?: number
+          content_end?: number
+          content_start?: number
+          created_at?: string
+          embedding?: string
+          id?: string
+          note_id?: string
+          text_chunk?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "note_chunks_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       note_links: {
         Row: {
           created_at: string

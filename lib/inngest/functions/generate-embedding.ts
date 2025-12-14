@@ -2,12 +2,15 @@ import { inngest } from '../client'
 import { NonRetriableError } from 'inngest'
 import { createClient } from '@supabase/supabase-js'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { embed } from 'ai'
+import { embedMany } from 'ai'
 import type { Database } from '@/types/database.types'
-import { hashNoteForEmbedding } from '@/lib/embedding'
+import { hashNoteForEmbedding, chunkText, meanPoolEmbeddings } from '@/lib/embedding'
 
-const MAX_EMBEDDING_CHARS = 8000
 const EMBEDDING_MODEL = 'openai/text-embedding-3-small'
+
+// Chunking configuration
+const CHUNK_SIZE_CHARS = 2000
+const CHUNK_OVERLAP_CHARS = 200
 
 export const generateNoteEmbedding = inngest.createFunction(
   {
@@ -38,7 +41,7 @@ export const generateNoteEmbedding = inngest.createFunction(
     const noteData = await step.run('fetch-note-data', async () => {
       const { data: note, error } = await supabase
         .from('notes')
-        .select('id, title, problem, content, embedding_content_hash, embedding_status')
+        .select('id, user_id, title, problem, content, embedding_content_hash, embedding_status')
         .eq('id', noteId)
         .single()
 
@@ -94,13 +97,19 @@ export const generateNoteEmbedding = inngest.createFunction(
       }
     }
 
-    // Step 4: Prepare text for embedding
+    // Step 4: Prepare text and create chunks
     const rawText = [note.title, note.problem, note.content].filter(Boolean).join('\n\n')
-    const textToEmbed = rawText.slice(0, MAX_EMBEDDING_CHARS)
+    const chunks = chunkText(rawText, {
+      chunkSizeChars: CHUNK_SIZE_CHARS,
+      overlapChars: CHUNK_OVERLAP_CHARS,
+    })
 
-    if (!textToEmbed.trim()) {
-      // No content to embed - mark as completed with null embedding
+    if (chunks.length === 0) {
+      // No content to embed - mark as completed with null embedding and clear chunks
       await step.run('mark-empty-completed', async () => {
+        // Delete any existing chunks
+        await supabase.from('note_chunks').delete().eq('note_id', noteId)
+
         await supabase
           .from('notes')
           .update({
@@ -115,18 +124,18 @@ export const generateNoteEmbedding = inngest.createFunction(
       return { skipped: true, reason: 'No content to embed', noteId }
     }
 
-    // Step 5: Generate embedding
-    let embedding: number[]
+    // Step 5: Generate embeddings for all chunks
+    let embeddings: number[][]
     try {
-      const result = await step.run('generate-embedding', async () => {
+      const result = await step.run('generate-embeddings', async () => {
         const openrouter = createOpenRouter({ apiKey })
 
-        return embed({
+        return embedMany({
           model: openrouter.textEmbeddingModel(EMBEDDING_MODEL),
-          value: textToEmbed,
+          values: chunks.map((c) => c.text),
         })
       })
-      embedding = result.embedding
+      embeddings = result.embeddings
     } catch (error) {
       // Mark as failed
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -143,12 +152,70 @@ export const generateNoteEmbedding = inngest.createFunction(
       throw error // Re-throw for Inngest retry logic
     }
 
-    // Step 6: Store embedding with conditional update
-    await step.run('store-embedding', async () => {
+    // Step 6: Store chunks with embeddings (conditional on hash match)
+    const chunksStored = await step.run('store-chunks', async (): Promise<{
+      stored: boolean
+      reason?: string
+      chunkCount?: number
+    }> => {
+      // Verify hash hasn't changed before modifying chunks
+      const { data: currentNote } = await supabase
+        .from('notes')
+        .select('embedding_content_hash')
+        .eq('id', noteId)
+        .single()
+
+      if (currentNote?.embedding_content_hash !== expectedHash) {
+        return { stored: false, reason: 'Hash changed during processing' }
+      }
+
+      // Delete existing chunks
+      const { error: deleteError } = await supabase
+        .from('note_chunks')
+        .delete()
+        .eq('note_id', noteId)
+
+      if (deleteError) {
+        throw new Error(`Failed to delete old chunks: ${deleteError.message}`)
+      }
+
+      // Insert new chunks
+      const chunkRows = chunks.map((chunk, i) => ({
+        note_id: noteId,
+        user_id: note.user_id,
+        chunk_index: chunk.index,
+        content_start: chunk.start,
+        content_end: chunk.end,
+        text_chunk: chunk.text,
+        embedding: embeddings[i] as unknown as string, // Cast for Supabase vector type
+      }))
+
+      const { error: insertError } = await supabase.from('note_chunks').insert(chunkRows)
+
+      if (insertError) {
+        throw new Error(`Failed to insert chunks: ${insertError.message}`)
+      }
+
+      return { stored: true, chunkCount: chunks.length }
+    })
+
+    if (!chunksStored.stored) {
+      return {
+        skipped: true,
+        reason: chunksStored.reason || 'Failed to store chunks',
+        noteId,
+      }
+    }
+
+    // Step 7: Compute aggregate embedding and store on note
+    await step.run('store-aggregate-embedding', async () => {
+      // Compute mean pooling of all chunk embeddings
+      const aggregateEmbedding = meanPoolEmbeddings(embeddings)
+
       const { error } = await supabase
         .from('notes')
         .update({
-          embedding: embedding as unknown as string,
+          embedding: aggregateEmbedding as unknown as string,
           embedding_status: 'completed',
           embedding_updated_at: new Date().toISOString(),
           embedding_model: EMBEDDING_MODEL,
@@ -158,10 +225,14 @@ export const generateNoteEmbedding = inngest.createFunction(
         .eq('embedding_content_hash', expectedHash) // Only update if hash still matches
 
       if (error) {
-        throw new Error(`Failed to store embedding: ${error.message}`)
+        throw new Error(`Failed to store aggregate embedding: ${error.message}`)
       }
     })
 
-    return { success: true, noteId }
+    return {
+      success: true,
+      noteId,
+      chunkCount: chunks.length,
+    }
   }
 )

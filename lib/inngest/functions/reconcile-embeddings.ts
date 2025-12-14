@@ -41,7 +41,7 @@ export const reconcileEmbeddings = inngest.createFunction(
       }
 
       // Query 2: Legacy notes (completed but no hash - need hash backfill)
-      const remainingLimit = BATCH_LIMIT - (staleNotes?.length || 0)
+      let remainingLimit = BATCH_LIMIT - (staleNotes?.length || 0)
       let legacyNotes: typeof staleNotes = []
 
       if (remainingLimit > 0) {
@@ -61,7 +61,44 @@ export const reconcileEmbeddings = inngest.createFunction(
         legacyNotes = data || []
       }
 
-      return [...(staleNotes || []), ...legacyNotes]
+      // Query 3: Notes with embedding but no chunks (need chunk backfill)
+      remainingLimit = BATCH_LIMIT - (staleNotes?.length || 0) - legacyNotes.length
+      let missingChunksNotes: typeof staleNotes = []
+
+      if (remainingLimit > 0) {
+        // Find notes that have an embedding but no chunks
+        const { data, error: chunksError } = await supabase
+          .from('notes')
+          .select('id, title, problem, content')
+          .eq('embedding_status', 'completed')
+          .not('embedding', 'is', null)
+          .is('deleted_at', null)
+          .limit(remainingLimit * 2) // Fetch more since we'll filter
+
+        if (chunksError) {
+          throw new Error(`Failed to fetch notes for chunk backfill: ${chunksError.message}`)
+        }
+
+        if (data && data.length > 0) {
+          // Check which notes have no chunks
+          const noteIds = data.map((n) => n.id)
+          const { data: existingChunks, error: chunkCheckError } = await supabase
+            .from('note_chunks')
+            .select('note_id')
+            .in('note_id', noteIds)
+
+          if (chunkCheckError) {
+            throw new Error(`Failed to check existing chunks: ${chunkCheckError.message}`)
+          }
+
+          const notesWithChunks = new Set(existingChunks?.map((c) => c.note_id) || [])
+          missingChunksNotes = data
+            .filter((n) => !notesWithChunks.has(n.id))
+            .slice(0, remainingLimit)
+        }
+      }
+
+      return [...(staleNotes || []), ...legacyNotes, ...missingChunksNotes]
     })
 
     if (notesToReconcile.length === 0) {

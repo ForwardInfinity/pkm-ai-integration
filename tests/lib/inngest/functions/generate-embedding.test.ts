@@ -126,9 +126,9 @@ vi.mock('@openrouter/ai-sdk-provider', () => ({
 }))
 
 vi.mock('ai', () => ({
-  embed: vi.fn(() =>
+  embedMany: vi.fn(() =>
     Promise.resolve({
-      embedding: new Array(1536).fill(0.1),
+      embeddings: [new Array(1536).fill(0.1)],
     })
   ),
 }))

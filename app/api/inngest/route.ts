@@ -4,9 +4,15 @@ import {
   purgeOldTrash,
   generateNoteEmbedding,
   reconcileEmbeddings,
+  detectNoteConflicts,
 } from '@/lib/inngest/functions'
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [purgeOldTrash, generateNoteEmbedding, reconcileEmbeddings],
+  functions: [
+    purgeOldTrash,
+    generateNoteEmbedding,
+    reconcileEmbeddings,
+    detectNoteConflicts,
+  ],
 })

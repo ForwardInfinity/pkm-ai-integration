@@ -99,6 +99,13 @@ Notes are chunked (2000 chars, 200 overlap) and stored in `note_chunks`:
 
 Idempotency: content hash guards all writes. Notes track `embedding_status` ('pending'→'processing'→'completed'|'failed'). RPCs use chunk-level search for full semantic coverage.
 
+### Conflict Detection Pipeline
+
+Event-driven via Inngest: `note/embedding.completed` → `note/conflicts.detection.requested`
+- `conflict_judgments` table tracks ALL LLM verdicts (including "no conflict") for idempotency
+- Keyed by `pair_content_hash` — re-judges only when note content changes
+- `judgment_result` enum: `'no_conflict'`, `'tension'`, `'contradiction'`
+
 ### Component Placement
 
 - Feature-specific → `features/[domain]/components/`
@@ -108,7 +115,7 @@ Idempotency: content hash guards all writes. Notes track `embedding_status` ('pe
 
 ## Database
 
-**Tables** (all RLS-enabled): `profiles`, `notes`, `note_chunks`, `conflicts`, `note_links`
+**Tables** (all RLS-enabled): `profiles`, `notes`, `note_chunks`, `conflicts`, `conflict_judgments`, `note_links`
 
 **Key RPCs**: `hybrid_search`, `get_related_notes`, `get_backlinks`, `find_potential_conflicts`, `get_unresolved_conflict_count`, `get_all_tags`, `get_notes_by_tags`
 

@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      conflict_judgments: {
+        Row: {
+          confidence: number
+          created_at: string
+          explanation: string | null
+          id: string
+          judgment_result: Database["public"]["Enums"]["judgment_result"]
+          model: string
+          note_a_id: string
+          note_b_id: string
+          pair_content_hash: string
+          reasoning: string
+          user_id: string
+        }
+        Insert: {
+          confidence: number
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          judgment_result: Database["public"]["Enums"]["judgment_result"]
+          model: string
+          note_a_id: string
+          note_b_id: string
+          pair_content_hash: string
+          reasoning: string
+          user_id: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          judgment_result?: Database["public"]["Enums"]["judgment_result"]
+          model?: string
+          note_a_id?: string
+          note_b_id?: string
+          pair_content_hash?: string
+          reasoning?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conflict_judgments_note_a_id_fkey"
+            columns: ["note_a_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conflict_judgments_note_b_id_fkey"
+            columns: ["note_b_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conflicts: {
         Row: {
           conflict_type: Database["public"]["Enums"]["conflict_type"]
@@ -313,6 +370,7 @@ export type Database = {
     Enums: {
       conflict_status: "active" | "dismissed"
       conflict_type: "contradiction" | "tension"
+      judgment_result: "no_conflict" | "tension" | "contradiction"
       user_role: "user" | "admin"
     }
     CompositeTypes: {
@@ -443,6 +501,7 @@ export const Constants = {
     Enums: {
       conflict_status: ["active", "dismissed"],
       conflict_type: ["contradiction", "tension"],
+      judgment_result: ["no_conflict", "tension", "contradiction"],
       user_role: ["user", "admin"],
     },
   },

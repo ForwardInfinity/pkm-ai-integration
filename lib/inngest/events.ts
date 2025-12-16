@@ -5,4 +5,16 @@ export type InngestEvents = {
       expectedHash: string
     }
   }
+  'note/embedding.completed': {
+    data: {
+      noteId: string
+      contentHash: string
+    }
+  }
+  'note/conflicts.detection.requested': {
+    data: {
+      noteId: string
+      contentHash: string
+    }
+  }
 }

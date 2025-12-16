@@ -1,11 +1,11 @@
--- Migration 002: Functions & Triggers
+-- Consolidated Functions Migration
 -- All database functions and triggers for Refinery
+-- Consolidates: original 002, 005 (chunk-based search), 006 (embedding status gating)
 
 -- ============================================================================
 -- TRIGGER FUNCTIONS
 -- ============================================================================
 
--- Auto-update updated_at timestamp
 create or replace function update_updated_at()
 returns trigger
 language plpgsql
@@ -17,7 +17,6 @@ begin
 end;
 $$;
 
--- Auto-create profile on user signup
 create or replace function handle_new_user()
 returns trigger
 language plpgsql
@@ -25,14 +24,11 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into profiles (id)
-  values (new.id);
+  insert into profiles (id) values (new.id);
   return new;
 end;
 $$;
 
--- Delete active conflicts when note is soft-deleted
--- (dismissed conflicts stay for record-keeping)
 create or replace function on_note_soft_delete()
 returns trigger
 language plpgsql
@@ -49,9 +45,6 @@ begin
 end;
 $$;
 
--- Re-detect conflicts when note is restored from trash
--- Note: This just deletes stale dismissed records if the other note is also deleted
--- Actual re-detection happens via Inngest when embedding is regenerated
 create or replace function on_note_restore()
 returns trigger
 language plpgsql
@@ -60,7 +53,6 @@ set search_path = public
 as $$
 begin
   if new.deleted_at is null and old.deleted_at is not null then
-    -- Clean up dismissed conflicts where the other note is still deleted
     delete from conflicts c
     where (c.note_a_id = new.id or c.note_b_id = new.id)
       and c.status = 'dismissed'
@@ -99,23 +91,9 @@ create trigger on_note_restore
   for each row execute function on_note_restore();
 
 -- ============================================================================
--- SEARCH FUNCTIONS
+-- SEARCH FUNCTIONS (chunk-based, gated on embedding_status = 'completed')
 -- ============================================================================
 
--- Hybrid search combining full-text search with semantic vector search
--- Uses Reciprocal Rank Fusion (RRF) to merge results from both methods
---
--- Parameters:
---   query_text: The search query string for full-text search
---   query_embedding: Vector embedding of the query for semantic search (1536 dims for text-embedding-3-small)
---   match_count: Maximum number of results to return (default: 10)
---   full_text_weight: Weight for full-text search results in RRF scoring (default: 1.0)
---   semantic_weight: Weight for semantic search results in RRF scoring (default: 1.0)
---   rrf_k: Smoothing constant for RRF scoring to prevent extreme scores (default: 50)
---   similarity_threshold: Minimum cosine similarity (0-1) for semantic results (default: 0.3)
---
--- Called from: features/search/actions/hybrid-search.ts
--- Embeddings cached client-side via LRU cache to reduce API calls
 create or replace function hybrid_search(
   query_text text,
   query_embedding vector(1536),
@@ -154,11 +132,24 @@ as $$
         order by ts_rank_cd(n.fts, websearch_to_tsquery('english', query_text)) desc
       ) as rank_ix
     from notes n
-    where n.user_id = auth.uid()
+    where n.user_id = (select auth.uid())
       and n.deleted_at is null
       and n.fts @@ websearch_to_tsquery('english', query_text)
     order by ts_rank_cd(n.fts, websearch_to_tsquery('english', query_text)) desc
     limit match_count * 2
+  ),
+  semantic_chunks as (
+    select
+      nc.note_id,
+      nc.text_chunk,
+      1 - (nc.embedding <=> query_embedding) as similarity,
+      row_number() over (partition by nc.note_id order by nc.embedding <=> query_embedding) as chunk_rank
+    from note_chunks nc
+    join notes n on n.id = nc.note_id
+    where nc.user_id = (select auth.uid())
+      and n.deleted_at is null
+      and n.embedding_status = 'completed'
+      and 1 - (nc.embedding <=> query_embedding) >= similarity_threshold
   ),
   semantic as (
     select
@@ -166,14 +157,11 @@ as $$
       n.title,
       n.problem,
       n.content,
-      substring(n.content, 1, 150) as snippet,
-      row_number() over (order by n.embedding <=> query_embedding) as rank_ix
-    from notes n
-    where n.user_id = auth.uid()
-      and n.deleted_at is null
-      and n.embedding is not null
-      and 1 - (n.embedding <=> query_embedding) >= similarity_threshold
-    order by n.embedding <=> query_embedding
+      substring(sc.text_chunk, 1, 150) as snippet,
+      row_number() over (order by sc.similarity desc) as rank_ix
+    from semantic_chunks sc
+    join notes n on n.id = sc.note_id
+    where sc.chunk_rank = 1
     limit match_count * 2
   )
   select
@@ -197,10 +185,8 @@ as $$
   limit match_count;
 $$;
 
-comment on function hybrid_search is 'Hybrid search combining full-text keyword search with semantic vector search using Reciprocal Rank Fusion (RRF). Includes similarity_threshold to filter low-relevance semantic results.';
+comment on function hybrid_search is 'Hybrid search combining full-text keyword search with chunk-based semantic vector search using Reciprocal Rank Fusion (RRF). Uses note_chunks for full semantic coverage of long notes. Only searches notes with completed embeddings.';
 
--- Find related notes by semantic similarity
--- Filters by minimum similarity threshold to avoid showing unrelated notes
 create or replace function get_related_notes(
   target_note_id uuid,
   match_count int default 5,
@@ -216,56 +202,47 @@ language sql stable
 security invoker
 set search_path = public, extensions
 as $$
+  with target_chunks as (
+    select embedding
+    from note_chunks
+    where note_id = target_note_id
+      and exists (
+        select 1 from notes
+        where id = target_note_id
+          and embedding_status = 'completed'
+      )
+  ),
+  candidate_matches as (
+    select
+      nc.note_id,
+      max(1 - (nc.embedding <=> tc.embedding)) as max_similarity
+    from target_chunks tc
+    cross join lateral (
+      select note_id, embedding
+      from note_chunks
+      where user_id = (select auth.uid())
+        and note_id != target_note_id
+      order by embedding <=> tc.embedding
+      limit match_count * 5
+    ) nc
+    group by nc.note_id
+    having max(1 - (nc.embedding <=> tc.embedding)) >= match_threshold
+  )
   select
     n.id,
     n.title,
     n.problem,
-    1 - (n.embedding <=> target.embedding) as similarity
-  from notes n
-  cross join (select embedding from notes where id = target_note_id) target
-  where n.user_id = auth.uid()
-    and n.id != target_note_id
-    and n.deleted_at is null
-    and n.embedding is not null
-    and target.embedding is not null
-    and 1 - (n.embedding <=> target.embedding) >= match_threshold
-  order by n.embedding <=> target.embedding
+    cm.max_similarity as similarity
+  from candidate_matches cm
+  join notes n on n.id = cm.note_id
+  where n.deleted_at is null
+    and n.embedding_status = 'completed'
+  order by cm.max_similarity desc
   limit match_count;
 $$;
 
-comment on function get_related_notes is 'Returns notes semantically similar to a target note, filtered by minimum similarity threshold';
+comment on function get_related_notes is 'Returns notes semantically similar to a target note using chunk-level embeddings for better coverage of long documents. Only returns notes with completed embeddings.';
 
--- Get backlinks for a note
--- Note: Parameter prefixed with p_ to avoid collision with column name nl.target_note_id
-create or replace function get_backlinks(
-  p_target_note_id uuid
-)
-returns table (
-  id uuid,
-  title text,
-  problem text
-)
-language sql stable
-security invoker
-set search_path = public
-as $$
-  select n.id, n.title, n.problem
-  from note_links nl
-  join notes n on n.id = nl.source_note_id
-  where nl.target_note_id = p_target_note_id
-    and nl.user_id = auth.uid()
-    and n.deleted_at is null
-  order by n.updated_at desc;
-$$;
-
-comment on function get_backlinks is 'Returns notes that link to the target note (backlinks)';
-
--- ============================================================================
--- CONFLICT DETECTION FUNCTIONS
--- ============================================================================
-
--- Find potential conflicts for a note
--- Only excludes pairs with DISMISSED conflicts (allows re-detection after deletion)
 create or replace function find_potential_conflicts(
   target_note_id uuid,
   similarity_threshold float default 0.8,
@@ -282,34 +259,82 @@ language sql stable
 security invoker
 set search_path = public, extensions
 as $$
+  with target_note_user as (
+    select user_id from notes where id = target_note_id
+  ),
+  target_chunks as (
+    select embedding
+    from note_chunks
+    where note_id = target_note_id
+      and exists (
+        select 1 from notes
+        where id = target_note_id
+          and embedding_status = 'completed'
+      )
+  ),
+  candidate_matches as (
+    select
+      nc.note_id,
+      max(1 - (nc.embedding <=> tc.embedding)) as max_similarity
+    from target_chunks tc
+    cross join lateral (
+      select nc_inner.note_id, nc_inner.embedding
+      from note_chunks nc_inner
+      where nc_inner.user_id = (select user_id from target_note_user)
+        and nc_inner.note_id != target_note_id
+      order by nc_inner.embedding <=> tc.embedding
+      limit match_count * 5
+    ) nc
+    group by nc.note_id
+    having max(1 - (nc.embedding <=> tc.embedding)) > similarity_threshold
+  )
   select
     n.id as note_id,
     n.title,
     n.problem,
     n.content,
-    1 - (n.embedding <=> target.embedding) as similarity
-  from notes n
-  cross join (select embedding, user_id from notes where id = target_note_id) target
-  where n.user_id = target.user_id
-    and n.id != target_note_id
-    and n.deleted_at is null
-    and n.embedding is not null
-    and target.embedding is not null
-    and 1 - (n.embedding <=> target.embedding) > similarity_threshold
-    -- Only skip pairs with DISMISSED conflicts (allow re-detection otherwise)
+    cm.max_similarity as similarity
+  from candidate_matches cm
+  join notes n on n.id = cm.note_id
+  where n.deleted_at is null
+    and n.embedding_status = 'completed'
     and not exists (
       select 1 from conflicts c
       where c.note_a_id = least(n.id, target_note_id)
         and c.note_b_id = greatest(n.id, target_note_id)
         and c.status = 'dismissed'
     )
-  order by n.embedding <=> target.embedding
+  order by cm.max_similarity desc
   limit match_count;
 $$;
 
-comment on function find_potential_conflicts is 'Finds semantically similar notes for conflict detection (skips dismissed pairs)';
+comment on function find_potential_conflicts is 'Finds semantically similar notes for conflict detection using chunk-level embeddings (skips dismissed pairs). Only searches notes with completed embeddings.';
 
--- Get count of active conflicts (excludes soft-deleted notes)
+-- ============================================================================
+-- UTILITY FUNCTIONS
+-- ============================================================================
+
+create or replace function get_backlinks(p_target_note_id uuid)
+returns table (
+  id uuid,
+  title text,
+  problem text
+)
+language sql stable
+security invoker
+set search_path = public
+as $$
+  select n.id, n.title, n.problem
+  from note_links nl
+  join notes n on n.id = nl.source_note_id
+  where nl.target_note_id = p_target_note_id
+    and nl.user_id = (select auth.uid())
+    and n.deleted_at is null
+  order by n.updated_at desc;
+$$;
+
+comment on function get_backlinks is 'Returns notes that link to the target note (backlinks)';
+
 create or replace function get_unresolved_conflict_count()
 returns integer
 language sql stable
@@ -320,7 +345,7 @@ as $$
   from conflicts c
   join notes na on c.note_a_id = na.id
   join notes nb on c.note_b_id = nb.id
-  where c.user_id = auth.uid()
+  where c.user_id = (select auth.uid())
     and c.status = 'active'
     and na.deleted_at is null
     and nb.deleted_at is null;
@@ -328,11 +353,6 @@ $$;
 
 comment on function get_unresolved_conflict_count is 'Returns count of active conflicts for sidebar badge';
 
--- ============================================================================
--- TAG FUNCTIONS
--- ============================================================================
-
--- Get notes by tags (any of the specified tags)
 create or replace function get_notes_by_tags(
   filter_tags text[],
   include_deleted boolean default false
@@ -357,7 +377,7 @@ as $$
     n.is_pinned,
     n.updated_at
   from notes n
-  where n.user_id = auth.uid()
+  where n.user_id = (select auth.uid())
     and n.tags && filter_tags
     and (include_deleted or n.deleted_at is null)
   order by n.is_pinned desc, n.updated_at desc;
@@ -365,7 +385,6 @@ $$;
 
 comment on function get_notes_by_tags is 'Returns notes that have any of the specified tags';
 
--- Get all unique tags with usage count
 create or replace function get_all_tags()
 returns table (tag text, count bigint)
 language sql stable
@@ -374,7 +393,7 @@ set search_path = public
 as $$
   select unnest(tags) as tag, count(*) as count
   from notes
-  where user_id = auth.uid()
+  where user_id = (select auth.uid())
     and deleted_at is null
   group by tag
   order by count desc, tag;

@@ -12,10 +12,13 @@ The core persistence layer using Supabase with PostgreSQL and pgvector for embed
 erDiagram
     profiles ||--o{ notes : "owns"
     profiles ||--o{ conflicts : "owns"
+    profiles ||--o{ conflict_judgments : "owns"
     profiles ||--o{ note_links : "owns"
     profiles ||--o{ note_chunks : "owns"
     notes ||--o{ conflicts : "note_a"
     notes ||--o{ conflicts : "note_b"
+    notes ||--o{ conflict_judgments : "note_a"
+    notes ||--o{ conflict_judgments : "note_b"
     notes ||--o{ note_links : "source"
     notes ||--o{ note_links : "target"
     notes ||--o{ note_chunks : "chunked into"
@@ -72,6 +75,20 @@ erDiagram
         timestamp created_at
     }
 
+    conflict_judgments {
+        uuid id PK
+        uuid user_id FK
+        uuid note_a_id FK
+        uuid note_b_id FK
+        string pair_content_hash "idempotency key"
+        judgment_result judgment_result "no_conflict|tension|contradiction"
+        float confidence "0-1"
+        text reasoning "internal LLM reasoning"
+        text explanation "user-facing (nullable)"
+        string model
+        timestamp created_at
+    }
+
     note_links {
         uuid id PK
         uuid user_id FK
@@ -88,6 +105,7 @@ erDiagram
 | `user_role` | `user`, `admin` | Access control role |
 | `conflict_type` | `contradiction`, `tension` | Direct vs indirect conflict |
 | `conflict_status` | `active`, `dismissed` | Resolution status |
+| `judgment_result` | `no_conflict`, `tension`, `contradiction` | LLM conflict judgment verdict |
 | `embedding_status` | `pending`, `processing`, `completed`, `failed` | Embedding generation state |
 
 ### Key Constraints
@@ -95,6 +113,8 @@ erDiagram
 | Table | Constraint | Description |
 |-------|------------|-------------|
 | `conflicts` | `note_a_id < note_b_id` | Prevents duplicate pairs (A,B) and (B,A) |
+| `conflict_judgments` | `note_a_id < note_b_id` | Canonical ordering for pairs |
+| `conflict_judgments` | `unique(note_a_id, note_b_id, pair_content_hash)` | Idempotency - one judgment per content state |
 | `note_links` | `source_note_id != target_note_id` | No self-links |
 | `note_chunks` | `unique(note_id, chunk_index)` | Ordered chunks per note |
 | `note_chunks` | `content_start >= 0 and content_end > content_start` | Valid character offsets |

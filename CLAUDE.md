@@ -101,10 +101,12 @@ Idempotency: content hash guards all writes. Notes track `embedding_status` ('pe
 
 ### Conflict Detection Pipeline
 
-Event-driven via Inngest: `note/embedding.completed` → `note/conflicts.detection.requested`
-- `conflict_judgments` table tracks ALL LLM verdicts (including "no conflict") for idempotency
+LLM-based detection via Inngest triggered by `note/conflicts.detection.requested`:
+- `lib/inngest/functions/detect-conflicts.ts` — fetches candidates via `find_potential_conflicts` RPC, calls LLM for judgment
+- `lib/ai/conflict-judgment.ts` — structured output with Zod schema, conservative detection emphasis
+- `conflict_judgments` table tracks ALL verdicts (including "no conflict") for idempotency
 - Keyed by `pair_content_hash` — re-judges only when note content changes
-- `judgment_result` enum: `'no_conflict'`, `'tension'`, `'contradiction'`
+- Creates `conflicts` only for tension/contradiction with confidence ≥ 0.7
 
 ### Component Placement
 

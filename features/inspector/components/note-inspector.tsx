@@ -38,11 +38,7 @@ export function NoteInspector() {
       />
 
       {/* Conflicts Section */}
-      <ConflictsSection 
-        noteId={effectiveNoteId}
-        // Placeholder: conflicts will be fetched via hook later
-        conflicts={[]}
-      />
+      <ConflictsSection noteId={effectiveNoteId} />
 
       {/* Related Notes Section */}
       <RelatedNotesSection 

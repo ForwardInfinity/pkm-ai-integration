@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { sidebarNavigation } from "@/config/navigation"
+import { useConflictCount } from "@/features/conflicts"
 import { Logo } from "@/components/shared/logo"
 import { TooltipIconButton } from "@/components/shared/tooltip-icon-button"
 import { UserNav } from "@/components/layout/user-nav"
@@ -32,6 +33,7 @@ interface AppSidebarProps {
 export function AppSidebar({ isCollapsed, email, onToggle }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const { data: conflictCount } = useConflictCount()
 
   const handleNewNote = () => {
     router.push("/notes/new")
@@ -172,8 +174,8 @@ export function AppSidebar({ isCollapsed, email, onToggle }: AppSidebarProps) {
                     </TooltipTrigger>
                     <TooltipContent side="right" className="flex items-center gap-4">
                       {link.title}
-                      {link.badge && (
-                        <span className="ml-auto text-muted-foreground">0</span>
+                      {link.badge && link.href === "/conflicts" && (conflictCount ?? 0) > 0 && (
+                        <span className="ml-auto text-muted-foreground">{conflictCount}</span>
                       )}
                     </TooltipContent>
                   </Tooltip>
@@ -194,7 +196,7 @@ export function AppSidebar({ isCollapsed, email, onToggle }: AppSidebarProps) {
                 >
                   <link.icon className="mr-2 h-4 w-4" aria-hidden="true" />
                   {link.title}
-                  {link.badge && (
+                  {link.badge && link.href === "/conflicts" && (conflictCount ?? 0) > 0 && (
                     <span
                       className={cn(
                         "ml-auto text-xs",
@@ -203,7 +205,7 @@ export function AppSidebar({ isCollapsed, email, onToggle }: AppSidebarProps) {
                           : "text-muted-foreground"
                       )}
                     >
-                      0
+                      {conflictCount}
                     </span>
                   )}
                 </Link>

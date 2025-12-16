@@ -19,3 +19,8 @@ export { useDismissConflict } from './hooks/use-dismiss-conflict';
 export { getConflicts } from './actions/get-conflicts';
 export { getNoteConflicts } from './actions/get-note-conflicts';
 export { dismissConflict } from './actions/dismiss-conflict';
+
+// Components
+export { ConflictList } from './components/conflict-list';
+export { ConflictCard } from './components/conflict-card';
+export { ConflictEmptyState } from './components/conflict-empty-state';

@@ -5,6 +5,7 @@ import {
   generateNoteEmbedding,
   reconcileEmbeddings,
   detectNoteConflicts,
+  reconcileConflicts,
 } from '@/lib/inngest/functions'
 
 export const { GET, POST, PUT } = serve({
@@ -14,5 +15,6 @@ export const { GET, POST, PUT } = serve({
     generateNoteEmbedding,
     reconcileEmbeddings,
     detectNoteConflicts,
+    reconcileConflicts,
   ],
 })

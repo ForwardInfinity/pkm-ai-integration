@@ -322,6 +322,52 @@ describe('generateNoteEmbedding integration', () => {
     mockNoteUpdates = []
   })
 
+  describe('completion event', () => {
+    it('should emit note/embedding.completed after successful embedding', async () => {
+      const noteContent = {
+        title: 'Test Note',
+        problem: null,
+        content: 'Some content to generate embedding',
+      }
+      const expectedHash = hashNoteForEmbedding(noteContent)
+
+      mockNoteData = {
+        id: 'note-emit-completed',
+        user_id: 'user-456',
+        ...noteContent,
+        embedding_content_hash: expectedHash,
+        embedding_status: 'pending',
+      }
+
+      vi.doMock('@supabase/supabase-js', () => ({
+        createClient: vi.fn(() => createIntegrationMockSupabaseClient()),
+      }))
+
+      const { generateNoteEmbedding } = await import(
+        '@/lib/inngest/functions/generate-embedding'
+      )
+
+      const mockStepSendEvent = vi.fn(async () => ({ ids: ['evt-1'] }))
+
+      const handler = generateNoteEmbedding.handler as (ctx: {
+        event: { data: { noteId: string; expectedHash: string } }
+        step: { run: typeof mockStepRun; sendEvent: typeof mockStepSendEvent }
+      }) => Promise<unknown>
+
+      await handler({
+        event: { data: { noteId: 'note-emit-completed', expectedHash } },
+        step: { run: mockStepRun, sendEvent: mockStepSendEvent },
+      })
+
+      expect(mockStepSendEvent).toHaveBeenCalledTimes(1)
+      expect(mockStepSendEvent).toHaveBeenCalledWith('emit-embedding-completed', {
+        id: `note-embedding.completed:note-emit-completed:${expectedHash}`,
+        name: 'note/embedding.completed',
+        data: { noteId: 'note-emit-completed', contentHash: expectedHash },
+      })
+    })
+  })
+
   describe('stale event detection', () => {
     it('should skip processing when content hash has changed since event was sent', async () => {
       // Setup: Note exists with different hash than expected

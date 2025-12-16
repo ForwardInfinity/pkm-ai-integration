@@ -208,14 +208,15 @@ describe('detectNoteConflicts', () => {
       })
     })
 
-    it('should trigger on note/conflicts.detection.requested event', async () => {
+    it('should trigger on note/conflicts.detection.requested and note/embedding.completed events', async () => {
       const { detectNoteConflicts } = await import(
         '@/lib/inngest/functions/detect-conflicts'
       )
 
-      expect(detectNoteConflicts.trigger).toEqual({
-        event: 'note/conflicts.detection.requested',
-      })
+      expect(detectNoteConflicts.trigger).toEqual([
+        { event: 'note/conflicts.detection.requested' },
+        { event: 'note/embedding.completed' },
+      ])
     })
 
     it('should have a handler function', async () => {

@@ -34,7 +34,7 @@ export function computePairHash(
 /**
  * Inngest function that detects conflicts between notes using LLM judgment.
  *
- * Triggered by: note/conflicts.detection.requested
+ * Triggered by: note/conflicts.detection.requested, note/embedding.completed
  *
  * Flow:
  * 1. Fetch target note with its embedding_content_hash
@@ -50,7 +50,10 @@ export const detectNoteConflicts = inngest.createFunction(
     retries: 3,
     concurrency: { limit: 3 },
   },
-  { event: 'note/conflicts.detection.requested' },
+  [
+    { event: 'note/conflicts.detection.requested' },
+    { event: 'note/embedding.completed' },
+  ],
   async ({ event, step }) => {
     const { noteId, contentHash } = event.data
 

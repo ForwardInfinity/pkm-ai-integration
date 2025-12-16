@@ -263,6 +263,15 @@ export const generateNoteEmbedding = inngest.createFunction(
       }
     }
 
+    await step.sendEvent('emit-embedding-completed', {
+      id: `note-embedding.completed:${noteId}:${expectedHash}`,
+      name: 'note/embedding.completed',
+      data: {
+        noteId,
+        contentHash: expectedHash,
+      },
+    })
+
     return {
       success: true,
       noteId,

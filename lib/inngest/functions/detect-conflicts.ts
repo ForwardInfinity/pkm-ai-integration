@@ -19,7 +19,7 @@ const CONFIDENCE_THRESHOLD = 0.7
  * @param noteBId - UUID of note B
  * @returns SHA-256 hex hash of the pair
  */
-function computePairHash(
+export function computePairHash(
   noteAHash: string,
   noteBHash: string,
   noteAId: string,

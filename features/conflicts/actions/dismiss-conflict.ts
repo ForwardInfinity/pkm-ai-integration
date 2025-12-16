@@ -18,13 +18,21 @@ export async function dismissConflict(
   try {
     const supabase = await createClient();
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('conflicts')
       .update({ status: 'dismissed' })
-      .eq('id', conflictId);
+      .eq('id', conflictId)
+      .select('id');
 
     if (error) {
       return { success: false, error: error.message };
+    }
+
+    if (!data || data.length === 0) {
+      return {
+        success: false,
+        error: 'Conflict not found or you do not have permission to dismiss it',
+      };
     }
 
     return { success: true };

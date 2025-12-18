@@ -6,6 +6,9 @@ const mockGenerateObject = vi.fn()
 
 vi.mock('ai', () => ({
   generateObject: mockGenerateObject,
+  APICallError: {
+    isInstance: (error: unknown) => error instanceof Error && 'statusCode' in error,
+  },
 }))
 
 vi.mock('@openrouter/ai-sdk-provider', () => ({
@@ -37,6 +40,7 @@ describe('conflictJudgmentSchema', () => {
         reasoning: 'These notes discuss different topics.',
         result: 'no_conflict',
         confidence: 0.9,
+        explanation: '',
       }
 
       expect(() => conflictJudgmentSchema.parse(validJudgment)).not.toThrow()
@@ -81,6 +85,7 @@ describe('conflictJudgmentSchema', () => {
         reasoning: 'Some reasoning',
         result: 'invalid_value',
         confidence: 0.5,
+        explanation: '',
       }
 
       expect(() => conflictJudgmentSchema.parse(invalidJudgment)).toThrow()
@@ -97,16 +102,19 @@ describe('conflictJudgmentSchema', () => {
         reasoning: 'Test',
         result: 'no_conflict',
         confidence: 0,
+        explanation: '',
       }
       const highConfidence = {
         reasoning: 'Test',
         result: 'no_conflict',
         confidence: 1,
+        explanation: '',
       }
       const midConfidence = {
         reasoning: 'Test',
         result: 'no_conflict',
         confidence: 0.73,
+        explanation: '',
       }
 
       expect(() => conflictJudgmentSchema.parse(lowConfidence)).not.toThrow()
@@ -123,6 +131,7 @@ describe('conflictJudgmentSchema', () => {
         reasoning: 'Test',
         result: 'no_conflict',
         confidence: -0.1,
+        explanation: '',
       }
 
       expect(() => conflictJudgmentSchema.parse(invalidJudgment)).toThrow()
@@ -137,14 +146,15 @@ describe('conflictJudgmentSchema', () => {
         reasoning: 'Test',
         result: 'no_conflict',
         confidence: 1.1,
+        explanation: '',
       }
 
       expect(() => conflictJudgmentSchema.parse(invalidJudgment)).toThrow()
     })
   })
 
-  describe('optional explanation field', () => {
-    it('should allow judgment without explanation', async () => {
+  describe('explanation field', () => {
+    it('should require explanation field', async () => {
       const { conflictJudgmentSchema } = await import(
         '@/lib/ai/conflict-judgment'
       )
@@ -155,8 +165,24 @@ describe('conflictJudgmentSchema', () => {
         confidence: 0.9,
       }
 
-      const parsed = conflictJudgmentSchema.parse(withoutExplanation)
-      expect(parsed.explanation).toBeUndefined()
+      // explanation is now required - parsing without it should fail
+      expect(() => conflictJudgmentSchema.parse(withoutExplanation)).toThrow()
+    })
+
+    it('should accept empty string explanation for no_conflict', async () => {
+      const { conflictJudgmentSchema } = await import(
+        '@/lib/ai/conflict-judgment'
+      )
+
+      const withEmptyExplanation = {
+        reasoning: 'Test reasoning',
+        result: 'no_conflict',
+        confidence: 0.9,
+        explanation: '',
+      }
+
+      const parsed = conflictJudgmentSchema.parse(withEmptyExplanation)
+      expect(parsed.explanation).toBe('')
     })
 
     it('should accept judgment with explanation', async () => {
@@ -199,6 +225,7 @@ describe('conflictJudgmentSchema', () => {
         reasoning: '',
         result: 'no_conflict',
         confidence: 0.9,
+        explanation: '',
       }
 
       // Empty string is technically valid for string field
@@ -240,6 +267,7 @@ describe('judgeNotePair', () => {
       reasoning: 'Test reasoning',
       result: 'no_conflict',
       confidence: 0.9,
+      explanation: '',
     }
 
     mockGenerateObject.mockResolvedValueOnce({ object: mockJudgment })
@@ -266,6 +294,7 @@ describe('judgeNotePair', () => {
       reasoning: 'Test',
       result: 'no_conflict',
       confidence: 0.9,
+      explanation: '',
     }
 
     mockGenerateObject.mockResolvedValueOnce({ object: mockJudgment })
@@ -291,6 +320,7 @@ describe('judgeNotePair', () => {
       reasoning: 'Test',
       result: 'no_conflict',
       confidence: 0.9,
+      explanation: '',
     }
 
     mockGenerateObject.mockResolvedValueOnce({ object: mockJudgment })
@@ -346,6 +376,7 @@ describe('judgeNotePair', () => {
       reasoning: 'Test',
       result: 'no_conflict',
       confidence: 0.9,
+      explanation: '',
     }
 
     mockGenerateObject.mockResolvedValueOnce({ object: mockJudgment })
@@ -369,6 +400,7 @@ describe('judgeNotePair', () => {
       reasoning: 'Test',
       result: 'no_conflict',
       confidence: 0.9,
+      explanation: '',
     }
 
     mockGenerateObject.mockResolvedValueOnce({ object: mockJudgment })
@@ -389,6 +421,7 @@ describe('judgeNotePair', () => {
       reasoning: 'Test',
       result: 'no_conflict',
       confidence: 0.9,
+      explanation: '',
     }
 
     mockGenerateObject.mockResolvedValueOnce({ object: mockJudgment })
@@ -409,6 +442,7 @@ describe('judgeNotePair', () => {
       reasoning: 'Test',
       result: 'no_conflict',
       confidence: 0.9,
+      explanation: '',
     }
 
     mockGenerateObject.mockResolvedValueOnce({ object: mockJudgment })

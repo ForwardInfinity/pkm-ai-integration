@@ -119,7 +119,7 @@ export const detectNoteConflicts = inngest.createFunction(
     const candidates = await step.run('fetch-candidates', async () => {
       const { data, error } = await supabase.rpc('find_potential_conflicts', {
         target_note_id: noteId,
-        similarity_threshold: 0.8,
+        similarity_threshold: 0.65,
         match_count: 10,
       })
 

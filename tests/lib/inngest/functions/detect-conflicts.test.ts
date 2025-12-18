@@ -1122,7 +1122,7 @@ describe('detectNoteConflicts', () => {
       expect(rpcCall).toBeDefined()
       expect(rpcCall?.args[0]).toMatchObject({
         target_note_id: 'note-123',
-        similarity_threshold: 0.8,
+        similarity_threshold: 0.65,
         match_count: 10,
       })
     })

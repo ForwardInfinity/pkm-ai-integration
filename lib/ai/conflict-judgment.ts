@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { generateObject } from 'ai'
+import { generateObject, APICallError } from 'ai'
 
 /**
  * Zod schema for structured LLM conflict judgment output.
@@ -26,9 +26,8 @@ export const conflictJudgmentSchema = z.object({
     ),
   explanation: z
     .string()
-    .optional()
     .describe(
-      'User-facing explanation if conflict detected. Format: "Note A claims [X]. Note B claims [Y]. These [contradict/create tension] because [reason]."'
+      'User-facing explanation of the conflict. For tension/contradiction: "Note A claims [X]. Note B claims [Y]. These [contradict/create tension] because [reason]." For no_conflict: return empty string "".'
     ),
 })
 
@@ -93,7 +92,7 @@ export interface NoteForJudgment {
  * @param noteA - First note to compare
  * @param noteB - Second note to compare
  * @param apiKey - OpenRouter API key
- * @returns Conflict judgment with reasoning, result, confidence, and optional explanation
+ * @returns Conflict judgment with reasoning, result, confidence, and explanation
  * @throws Error if LLM call fails (let caller handle retries)
  */
 export async function judgeNotePair(
@@ -121,17 +120,32 @@ ${noteB.content}
 
 Determine if these notes contain conflicting claims. Remember: similar ideas are NOT conflicts. Only flag genuine logical incompatibilities where both claims cannot be true.`
 
-  const { object } = await generateObject({
-    model: openrouter('openai/gpt-4o-mini'),
-    schema: conflictJudgmentSchema,
-    schemaName: 'conflict_judgment',
-    schemaDescription:
-      'Judgment of whether two notes contain logically conflicting claims',
-    system: SYSTEM_PROMPT,
-    prompt: userPrompt,
-    temperature: 0.1,
-    maxRetries: 0, // Let Inngest handle retries at the function level
-  })
+  try {
+    const { object } = await generateObject({
+      model: openrouter('openai/gpt-4o-mini'),
+      schema: conflictJudgmentSchema,
+      schemaName: 'conflict_judgment',
+      schemaDescription:
+        'Judgment of whether two notes contain logically conflicting claims',
+      system: SYSTEM_PROMPT,
+      prompt: userPrompt,
+      temperature: 0.1,
+      maxRetries: 0, // Let Inngest handle retries at the function level
+    })
 
-  return object
+    return object
+  } catch (error) {
+    // Log detailed error information to help debug API issues
+    if (APICallError.isInstance(error)) {
+      console.error('[Conflicts] OpenRouter API Error:', {
+        statusCode: error.statusCode,
+        responseBody: error.responseBody,
+        url: error.url,
+        message: error.message,
+      })
+    } else {
+      console.error('[Conflicts] Unexpected error:', error)
+    }
+    throw error // Re-throw to let Inngest handle retries
+  }
 }

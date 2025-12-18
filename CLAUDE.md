@@ -16,10 +16,10 @@ Note-taking system implementing evolutionary epistemology (Popper/Deutsch)—kno
 
 ## Operating Rules
 - CRITICAL: MUST take time to fully break down and analyze problems before attempting to solve them. Deeply understanding the problem is non-negotiable. Your thinking should be thorough and deep, so it's fine if it's very long
-- ALWAYS read and fully understand all relevant files before planning or performing any task. Do NOT make implicit assumptions or speculate about code you have not inspected. If anything is unclear, use tool calls to search for relevant information until everything is clear.
-- IMPORTANT: Always use `ref` MCP to check docs before writing code for: Tiptap, Vercel AI SDK, Inngest and React Flow
-- Must write tests for new functionality (tests go in `tests/` directory, not colocated)
-- Use TypeScript strict mode
+- Avoid over-engineering. Keep solutions simple and focused while solving the problem.
+- ALWAYS read and fully understand all relevant files before planning or performing any task. Do NOT make implicit assumptions or speculate about code you have not inspected. Be rigorous and persistent in searching code for key facts.
+- IMPORTANT: ALWAYS use `ref` MCP to check docs before writing code for: Tiptap, Vercel AI SDK, Inngest and React Flow
+- Must write tests for new functionality (tests go in `tests/` directory, not colocated). Tests are there to verify correctness, not to define the solution. Focus on understanding the problem requirements and implementing the correct algorithm. Provide a principled implementation that follows best practices and software design principles.
 
 ## Tech Stack
 

@@ -7,17 +7,22 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.getClaims();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (error || !data?.claims) {
+  if (!user) {
     redirect("/login");
   }
 
-  // TODO: Add role check for admin access
-  // const isAdmin = data.claims.user_role === 'admin';
-  // if (!isAdmin) {
-  //   redirect("/notes");
-  // }
+  // Check if user has admin role using RPC to bypass RLS
+  const { data: isAdmin, error: adminError } = await supabase.rpc(
+    "is_current_user_admin"
+  );
+
+  if (adminError || !isAdmin) {
+    redirect("/notes");
+  }
 
   return (
     <main className="min-h-screen flex flex-col">

@@ -15,6 +15,8 @@ export { getAdminStats, getEmbeddingDetails } from "./actions/get-admin-stats";
 
 // Components
 export { AdminDashboard } from "./components/admin-dashboard";
+export { AdminLayout } from "./components/admin-layout";
+export { AdminSidebar } from "./components/admin-sidebar";
 export { UserList } from "./components/user-list";
 export { StatsOverview } from "./components/stats-overview";
 export { StatCard } from "./components/stat-card";

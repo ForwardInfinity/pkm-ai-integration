@@ -1,6 +1,6 @@
 'use client'
 
-import { Users, FileText, AlertTriangle, Cog } from 'lucide-react'
+import { Users, FileText, AlertTriangle, Database } from 'lucide-react'
 import { StatCard } from './stat-card'
 import type { AdminStats } from '../types'
 
@@ -23,41 +23,45 @@ export function StatsOverview({ stats }: StatsOverviewProps) {
     stats.embedding_completed + stats.embedding_failed
   const embeddingProgress = embeddingTotal > 0
     ? Math.round((stats.embedding_completed / embeddingTotal) * 100)
-    : 0
+    : 100
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Primary stat - Users */}
       <StatCard
-        title="Users"
+        title="Total Users"
         value={stats.total_users}
         subtitle={`${stats.admin_count} admin${stats.admin_count !== 1 ? 's' : ''}`}
         icon={Users}
-        iconColor="primary"
+        variant="highlight"
         animationDelay={0}
       />
+
+      {/* Notes stat */}
       <StatCard
-        title="Notes"
+        title="Active Notes"
         value={stats.active_notes}
-        subtitle={`${formatWordCount(stats.total_word_count)} words`}
+        subtitle={`${formatWordCount(stats.total_word_count)} words total`}
         icon={FileText}
-        iconColor="amber"
-        animationDelay={30}
+        animationDelay={50}
       />
+
+      {/* Conflicts stat */}
       <StatCard
         title="Conflicts"
-        value={`${stats.active_conflicts} active`}
-        subtitle={`${stats.total_conflicts} total`}
+        value={stats.active_conflicts}
+        subtitle={stats.total_conflicts > 0 ? `${stats.total_conflicts} total detected` : 'None detected'}
         icon={AlertTriangle}
-        iconColor="destructive"
-        animationDelay={60}
+        animationDelay={100}
       />
+
+      {/* Embeddings stat */}
       <StatCard
         title="Embeddings"
         value={`${embeddingProgress}%`}
-        subtitle={`${stats.embedding_completed}/${embeddingTotal} completed`}
-        icon={Cog}
-        iconColor="emerald"
-        animationDelay={90}
+        subtitle={`${stats.embedding_completed} of ${embeddingTotal} indexed`}
+        icon={Database}
+        animationDelay={150}
       />
     </div>
   )

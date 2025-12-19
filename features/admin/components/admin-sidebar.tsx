@@ -5,13 +5,8 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   Users,
-  Activity,
-  Settings,
   ChevronLeft,
   Shield,
-  Database,
-  Bell,
-  FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -25,14 +20,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Overview', href: '/admin', icon: LayoutDashboard },
   { label: 'Users', href: '/admin/users', icon: Users },
-  { label: 'Content', href: '/admin/content', icon: FileText },
-  { label: 'System', href: '/admin/system', icon: Activity },
-  { label: 'Database', href: '/admin/database', icon: Database },
-]
-
-const bottomNavItems: NavItem[] = [
-  { label: 'Notifications', href: '/admin/notifications', icon: Bell },
-  { label: 'Settings', href: '/admin/settings', icon: Settings },
 ]
 
 export function AdminSidebar() {
@@ -123,33 +110,6 @@ export function AdminSidebar() {
           })}
         </ul>
       </nav>
-
-      {/* Bottom Navigation */}
-      <div className="border-t border-border/40 px-3 py-3">
-        <ul className="space-y-1">
-          {bottomNavItems.map((item) => {
-            const isActive = pathname === item.href
-
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
-                    'transition-all duration-200',
-                    isActive
-                      ? 'bg-muted text-foreground'
-                      : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
-      </div>
 
       {/* Footer */}
       <div className="border-t border-border/40 px-5 py-4">

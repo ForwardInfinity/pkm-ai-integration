@@ -1,22 +1,85 @@
 'use client'
 
-import { Sparkles, MessageSquareWarning } from 'lucide-react'
+import { Sparkles, MessageSquareWarning, Loader2, AlertCircle, X, ChevronDown, ChevronRight } from 'lucide-react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { useCurrentNote } from '@/stores'
+import { useCritiqueNote } from '@/features/ai/hooks/use-critique-note'
 import { InspectorSection } from './inspector-section'
+import { cn } from '@/lib/utils'
 
 interface AIToolsSectionProps {
   noteId: string | null
   disabled?: boolean
 }
 
+interface CritiqueCategoryProps {
+  title: string
+  items: string[]
+  defaultOpen?: boolean
+}
+
+function CritiqueCategory({ title, items, defaultOpen = true }: CritiqueCategoryProps) {
+  const [isOpen, setIsOpen] = useState(defaultOpen)
+
+  if (items.length === 0) return null
+
+  return (
+    <div className="border-l-2 border-muted pl-3">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground w-full text-left"
+      >
+        {isOpen ? (
+          <ChevronDown className="h-3 w-3 shrink-0" />
+        ) : (
+          <ChevronRight className="h-3 w-3 shrink-0" />
+        )}
+        {title}
+        <span className="text-xs ml-1">({items.length})</span>
+      </button>
+      {isOpen && (
+        <ul className="mt-2 space-y-2">
+          {items.map((item, index) => (
+            <li key={index} className="text-sm text-foreground/90 leading-relaxed">
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export function AIToolsSection({ noteId, disabled = false }: AIToolsSectionProps) {
+  const currentNote = useCurrentNote()
+  const { isLoading, error, result, critique, dismiss } = useCritiqueNote()
+
   const isDisabled = disabled || !noteId || noteId === 'new'
 
-  // Placeholder handlers - to be wired up with AI later
   const handleCritiqueNote = () => {
-    console.log('Critique note clicked - AI integration coming soon')
-    // TODO: Implement AI critique functionality
+    if (!currentNote) return
+    critique(
+      currentNote.title,
+      currentNote.problem ?? '',
+      currentNote.content
+    )
   }
+
+  const hasResults = result && (
+    result.counterarguments.length > 0 ||
+    result.weakLinks.length > 0 ||
+    result.hiddenAssumptions.length > 0 ||
+    result.blindspots.length > 0
+  )
+
+  const totalCritiques = result
+    ? result.counterarguments.length +
+      result.weakLinks.length +
+      result.hiddenAssumptions.length +
+      result.blindspots.length
+    : 0
 
   return (
     <InspectorSection
@@ -24,21 +87,97 @@ export function AIToolsSection({ noteId, disabled = false }: AIToolsSectionProps
       icon={<Sparkles className="h-4 w-4" />}
       defaultOpen={true}
     >
-      <div className="space-y-2">
+      <div className="space-y-3">
         <Button
           variant="outline"
           size="sm"
-          className="w-full justify-start gap-2"
+          className={cn(
+            "w-full justify-start gap-2",
+            isLoading && "opacity-70"
+          )}
           onClick={handleCritiqueNote}
-          disabled={isDisabled}
+          disabled={isDisabled || isLoading}
         >
-          <MessageSquareWarning className="h-4 w-4" />
-          Critique This Note
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <MessageSquareWarning className="h-4 w-4" />
+          )}
+          {isLoading ? 'Critiquing...' : 'Critique This Note'}
         </Button>
-        {isDisabled && (
-          <p className="text-xs text-muted-foreground mt-2">
+
+        {isDisabled && !isLoading && !result && !error && (
+          <p className="text-xs text-muted-foreground">
             Save your note to enable AI tools
           </p>
+        )}
+
+        {error && (
+          <div className="flex items-start gap-2 p-2 rounded-md bg-destructive/10 text-destructive">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <p className="text-sm flex-1">{error}</p>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 shrink-0 hover:bg-destructive/20"
+              onClick={dismiss}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+
+        {result && !hasResults && (
+          <div className="p-2 rounded-md bg-muted/50">
+            <p className="text-sm text-muted-foreground">
+              No significant criticisms found. Your note appears well-reasoned!
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2 h-7 text-xs"
+              onClick={dismiss}
+            >
+              Dismiss
+            </Button>
+          </div>
+        )}
+
+        {hasResults && (
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                Found {totalCritiques} critique{totalCritiques !== 1 ? 's' : ''}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs px-2"
+                onClick={dismiss}
+              >
+                Clear
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <CritiqueCategory
+                title="Counterarguments"
+                items={result.counterarguments}
+              />
+              <CritiqueCategory
+                title="Weak Links"
+                items={result.weakLinks}
+              />
+              <CritiqueCategory
+                title="Hidden Assumptions"
+                items={result.hiddenAssumptions}
+              />
+              <CritiqueCategory
+                title="Blindspots"
+                items={result.blindspots}
+              />
+            </div>
+          </div>
         )}
       </div>
     </InspectorSection>

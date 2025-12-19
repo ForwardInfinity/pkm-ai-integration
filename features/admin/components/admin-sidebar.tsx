@@ -1,14 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   Users,
-  ChevronLeft,
+  LogOut,
   Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 
 interface NavItem {
   label: string
@@ -24,6 +25,13 @@ const navItems: NavItem[] = [
 
 export function AdminSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/admin/login')
+  }
 
   return (
     <aside className="flex h-full w-[240px] flex-col border-r border-border/40 bg-gradient-to-b from-card via-card to-card/80">
@@ -38,21 +46,6 @@ export function AdminSidebar() {
             Control Panel
           </span>
         </div>
-      </div>
-
-      {/* Back to App */}
-      <div className="px-3 py-3">
-        <Link
-          href="/notes"
-          className={cn(
-            'flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium',
-            'text-muted-foreground transition-all duration-200',
-            'hover:bg-muted/50 hover:text-foreground'
-          )}
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          Back to App
-        </Link>
       </div>
 
       {/* Main Navigation */}
@@ -112,13 +105,24 @@ export function AdminSidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-border/40 px-5 py-4">
-        <div className="flex items-center gap-2">
+      <div className="border-t border-border/40 px-3 py-3">
+        <div className="mb-3 flex items-center gap-2 px-3">
           <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           <span className="text-[10px] font-medium text-muted-foreground">
             All systems operational
           </span>
         </div>
+        <button
+          onClick={handleLogout}
+          className={cn(
+            'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium',
+            'text-muted-foreground transition-all duration-200',
+            'hover:bg-muted/50 hover:text-foreground'
+          )}
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          Sign Out
+        </button>
       </div>
     </aside>
   )

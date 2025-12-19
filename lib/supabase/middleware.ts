@@ -47,26 +47,58 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
+  const pathname = request.nextUrl.pathname;
+
   // Public routes that don't require authentication
   const publicRoutes = ["/", "/login", "/sign-up", "/sign-up-success", "/forgot-password", "/update-password", "/error"];
-  const isPublicRoute = publicRoutes.some(route => request.nextUrl.pathname === route);
+  const isPublicRoute = publicRoutes.some(route => pathname === route);
 
-  // Auth routes that should redirect to /notes if user is already authenticated
-  const authRoutes = ["/login", "/sign-up", "/forgot-password"];
-  const isAuthRoute = authRoutes.some(route => request.nextUrl.pathname === route);
+  // Admin routes are handled separately by the admin layout
+  const isAdminRoute = pathname.startsWith("/admin");
 
+  // User auth routes
+  const userAuthRoutes = ["/login", "/sign-up", "/forgot-password"];
+  const isUserAuthRoute = userAuthRoutes.some(route => pathname === route);
+
+  // User dashboard routes
+  const userRoutes = ["/notes", "/conflicts", "/graph", "/trash"];
+  const isUserRoute = userRoutes.some(route => pathname.startsWith(route));
+
+  // Allow all admin routes through - admin layout handles auth
+  if (isAdminRoute) {
+    return supabaseResponse;
+  }
+
+  // Redirect unauthenticated users to login (for user routes only)
   if (!user && !isPublicRoute) {
-    // no user, redirect to login page
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthRoute) {
-    // user is authenticated, redirect away from auth pages to /notes
-    const url = request.nextUrl.clone();
-    url.pathname = "/notes";
-    return NextResponse.redirect(url);
+  // If user is authenticated, check if admin and redirect away from user routes
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.sub)
+      .single();
+
+    const isAdmin = profile?.role === "admin";
+
+    // Admin users can't access user routes - redirect to /admin
+    if (isAdmin && (isUserRoute || isUserAuthRoute)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/admin";
+      return NextResponse.redirect(url);
+    }
+
+    // Regular users on auth pages - redirect to notes
+    if (!isAdmin && isUserAuthRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/notes";
+      return NextResponse.redirect(url);
+    }
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.

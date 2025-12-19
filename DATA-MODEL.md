@@ -130,6 +130,10 @@ erDiagram
 | `get_unresolved_conflict_count` | Count for sidebar badge |
 | `get_all_tags` | Aggregate tag counts |
 | `get_notes_by_tags` | Filter notes by tags |
+| `is_current_user_admin` | Check if current user has admin role (SECURITY DEFINER) |
+| `get_admin_users` | List all users with email for admin dashboard (admin only) |
+| `get_admin_dashboard_stats` | Aggregated platform statistics (admin only) |
+| `get_admin_embedding_details` | Embedding health with recent failures (admin only) |
 
 ### Trigger Functions
 

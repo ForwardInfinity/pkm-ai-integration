@@ -3,7 +3,7 @@
 import { AlertTriangle, Loader2, Users, Shield, User } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUsers } from "../hooks/use-users";
@@ -82,17 +82,16 @@ export function UserList() {
 
   if (isLoading) {
     return (
-      <div className="flex h-full flex-1 items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="absolute inset-0 animate-ping rounded-full bg-primary/10" />
-            <div className="relative rounded-full bg-background p-4 shadow-sm ring-1 ring-border/50">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          </div>
-          <p className="text-sm font-medium text-muted-foreground">
-            Loading users...
-          </p>
+      <div
+        className={cn(
+          "rounded-xl border bg-card/50 p-8 transition-all duration-200",
+          "animate-in fade-in slide-in-from-bottom-1 duration-300"
+        )}
+        style={{ animationDelay: "150ms" }}
+      >
+        <div className="flex items-center justify-center gap-3">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Loading users...</p>
         </div>
       </div>
     );
@@ -100,17 +99,23 @@ export function UserList() {
 
   if (error) {
     return (
-      <div className="flex h-full flex-1 flex-col items-center justify-center px-4 py-16">
-        <div className="rounded-2xl bg-background p-8 text-center shadow-sm ring-1 ring-destructive/20">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-            <AlertTriangle className="h-6 w-6 text-destructive" />
+      <div
+        className={cn(
+          "rounded-xl border border-destructive/20 bg-destructive/5 p-6",
+          "animate-in fade-in slide-in-from-bottom-1 duration-300"
+        )}
+        style={{ animationDelay: "150ms" }}
+      >
+        <div className="flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              Unable to load users
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {error.message || "Please check your connection and try again"}
+            </p>
           </div>
-          <p className="text-sm font-medium text-foreground">
-            Unable to load users
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {error.message || "Please check your connection and try again"}
-          </p>
         </div>
       </div>
     );
@@ -118,13 +123,17 @@ export function UserList() {
 
   if (!users || users.length === 0) {
     return (
-      <div className="flex h-full flex-1 flex-col items-center justify-center px-4 py-16">
-        <div className="rounded-2xl bg-muted/30 p-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-            <Users className="h-6 w-6 text-muted-foreground" />
-          </div>
-          <p className="text-sm font-medium text-foreground">No users found</p>
-        </div>
+      <div
+        className={cn(
+          "rounded-xl border bg-muted/30 p-8 text-center",
+          "animate-in fade-in slide-in-from-bottom-1 duration-300"
+        )}
+        style={{ animationDelay: "150ms" }}
+      >
+        <Users className="mx-auto h-8 w-8 text-muted-foreground/50" />
+        <p className="mt-2 text-sm font-medium text-muted-foreground">
+          No users found
+        </p>
       </div>
     );
   }
@@ -132,44 +141,46 @@ export function UserList() {
   const adminCount = users.filter((u) => u.role === "admin").length;
 
   return (
-    <ScrollArea className="h-full">
-      <div className="min-h-full">
-        <header className="sticky top-0 z-10 border-b border-border/40 bg-background/80 backdrop-blur-xl">
-          <div className="px-6 py-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
-                <Users className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-lg font-semibold tracking-tight text-foreground">
-                  User Management
-                </h1>
-                <p className="text-xs text-muted-foreground">
-                  {users.length} {users.length === 1 ? "user" : "users"} ({adminCount} admin)
-                </p>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <main className="px-6 py-6">
-          <div className="grid gap-3">
-            {users.map((user, index) => (
-              <div
-                key={user.id}
-                className="animate-in fade-in slide-in-from-bottom-1 duration-300"
-                style={{ animationDelay: `${index * 30}ms` }}
-              >
-                <UserRow
-                  user={user}
-                  onRoleChange={handleRoleChange}
-                  isUpdating={updateRoleMutation.isPending}
-                />
-              </div>
-            ))}
-          </div>
-        </main>
+    <div
+      className={cn(
+        "rounded-xl border bg-card/50 p-5 transition-all duration-200",
+        "hover:bg-card hover:shadow-md hover:shadow-black/[0.03]",
+        "animate-in fade-in slide-in-from-bottom-1 duration-300"
+      )}
+      style={{ animationDelay: "150ms" }}
+    >
+      {/* Section Header */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/20">
+          <Users className="h-4 w-4 text-primary" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">
+            User Management
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            {users.length} {users.length === 1 ? "user" : "users"} ({adminCount}{" "}
+            {adminCount === 1 ? "admin" : "admins"})
+          </p>
+        </div>
       </div>
-    </ScrollArea>
+
+      {/* User Grid */}
+      <div className="grid gap-2">
+        {users.map((user, index) => (
+          <div
+            key={user.id}
+            className="animate-in fade-in duration-200"
+            style={{ animationDelay: `${180 + index * 20}ms` }}
+          >
+            <UserRow
+              user={user}
+              onRoleChange={handleRoleChange}
+              isUpdating={updateRoleMutation.isPending}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

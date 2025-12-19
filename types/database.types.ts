@@ -306,6 +306,43 @@ export type Database = {
           title: string
         }[]
       }
+      get_admin_dashboard_stats: {
+        Args: never
+        Returns: {
+          total_users: number
+          admin_count: number
+          total_notes: number
+          active_notes: number
+          total_word_count: number
+          active_conflicts: number
+          total_conflicts: number
+          embedding_pending: number
+          embedding_processing: number
+          embedding_completed: number
+          embedding_failed: number
+          total_chunks: number
+        }[]
+      }
+      get_admin_embedding_details: {
+        Args: never
+        Returns: {
+          pending_count: number
+          processing_count: number
+          completed_count: number
+          failed_count: number
+          total_chunks: number
+          recent_failures: Json
+        }[]
+      }
+      get_admin_users: {
+        Args: never
+        Returns: {
+          id: string
+          email: string
+          role: Database["public"]["Enums"]["user_role"]
+          created_at: string
+        }[]
+      }
       get_all_tags: {
         Args: never
         Returns: {
@@ -366,6 +403,7 @@ export type Database = {
           rrf_score: number
         }[]
       }
+      is_current_user_admin: { Args: never; Returns: boolean }
     }
     Enums: {
       conflict_status: "active" | "dismissed"

@@ -1,7 +1,6 @@
 import {
   FileText,
   AlertTriangle,
-  Network,
   Trash2,
   Settings,
 } from "lucide-react"
@@ -18,11 +17,6 @@ export const sidebarNavigation: NavigationItem[] = [
     href: "/conflicts",
     icon: AlertTriangle,
     badge: true, // Show unresolved count
-  },
-  {
-    title: "Problem Graph",
-    href: "/graph",
-    icon: Network,
   },
   {
     title: "Trash",

@@ -1,0 +1,12 @@
+# UC-07: Chỉnh sửa ghi chú
+
+| Trường | Nội dung |
+| --- | --- |
+| **Mã Use Case** | UC-07 |
+| **Tên Use Case** | Chỉnh sửa ghi chú |
+| **Tác nhân** | Người dùng |
+| **Mô tả** | Cho phép người dùng chỉnh sửa nội dung ghi chú đã có để cập nhật, bổ sung hoặc hoàn thiện kiến thức được lưu trữ. |
+| **Tiền điều kiện** | - Người dùng đã đăng nhập vào hệ thống.<br><br>- Ghi chú cần chỉnh sửa đã tồn tại trong hệ thống.<br><br>- Người dùng đang ở trang quản lý ghi chú. |
+| **Hậu điều kiện** | - Nội dung ghi chú được cập nhật và lưu vào hệ thống.<br><br>- Thời gian cập nhật ghi chú được ghi nhận.<br><br>- Ghi chú được cập nhật vị trí trong danh sách theo thời gian chỉnh sửa.<br><br>- Hệ thống gửi yêu cầu tạo lại vector nhúng cho ghi chú nếu nội dung thay đổi. |
+| **Luồng sự kiện chính** | 1. Người dùng chọn ghi chú cần chỉnh sửa từ danh sách.<br><br>2. Hệ thống tải và hiển thị nội dung ghi chú trong trình soạn thảo.<br><br>3. Người dùng chỉnh sửa tiêu đề, mô tả vấn đề hoặc nội dung ghi chú.<br><br>4. Hệ thống tự động lưu nội dung khi người dùng ngừng nhập.<br><br>5. Hệ thống cập nhật vị trí ghi chú trong danh sách.<br><br>6. Hệ thống gửi yêu cầu tạo lại vector nhúng cho ghi chú. |
+| **Luồng thay thế** | **3a. Người dùng thêm hoặc sửa thẻ phân loại:**<br>   1. Người dùng nhập thẻ phân loại trong nội dung ghi chú (ví dụ: #ý-tưởng, #dự-án).<br>   2. Hệ thống tự động nhận diện và cập nhật thẻ cho ghi chú.<br>   3. Tiếp tục từ bước 4 của Luồng chính.<br><br>**3b. Người dùng thêm liên kết đến ghi chú khác:**<br>   1. Người dùng nhập liên kết nội bộ trong nội dung (ví dụ: [[Tên ghi chú]]).<br>   2. Hệ thống hiển thị gợi ý các ghi chú có liên quan.<br>   3. Người dùng chọn ghi chú cần liên kết.<br>   4. Hệ thống tạo liên kết đến ghi chú được chọn.<br>   5. Tiếp tục từ bước 4 của Luồng chính.<br><br>**4a. Mất kết nối mạng:**<br>   1. Hệ thống lưu ghi chú vào bộ nhớ cục bộ.<br>   2. Hệ thống đánh dấu ghi chú cần đồng bộ.<br>   3. Khi có kết nối, hệ thống tự động đồng bộ thay đổi lên máy chủ.<br>   4. Tiếp tục từ bước 5 của Luồng chính.<br><br>**2a. Ghi chú không tồn tại hoặc đã bị xóa:**<br>   1. Hệ thống hiển thị thông báo lỗi không tìm thấy ghi chú.<br>   2. Use Case kết thúc.<br><br>**3c. Người dùng chuyển sang ghi chú khác trước khi lưu:**<br>   1. Hệ thống tự động lưu các thay đổi hiện tại.<br>   2. Hệ thống chuyển sang hiển thị ghi chú mới được chọn.<br>   3. Quay lại bước 2 của Luồng chính với ghi chú mới. |

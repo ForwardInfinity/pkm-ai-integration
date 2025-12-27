@@ -1,0 +1,473 @@
+<mxfile host="app.diagrams.net" modified="2024-01-01T00:00:00.000Z" agent="Mozilla/5.0" version="22.1.0" type="device">
+  <diagram id="delete-trash-sequence" name="So do tuan tu Xoa ghi chu va Quan ly thung rac">
+    <mxGraphModel dx="1434" dy="780" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ============== TITLE ============== -->
+        <mxCell id="title" value="SO DO TUAN TU: XOA GHI CHU VA QUAN LY THUNG RAC" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="300" y="10" width="500" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ============== PARTICIPANTS ============== -->
+
+        <!-- Actor: User -->
+        <mxCell id="actor" value="Nguoi dung" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="70" y="50" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="actor_lifeline" value="" style="endArrow=none;dashed=1;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="85" y="110" as="sourcePoint" />
+            <mxPoint x="85" y="1750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Frontend -->
+        <mxCell id="fe_head" value="Giao dien&#xa;Quan ly ghi chu" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="200" y="60" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="fe_lifeline" value="" style="endArrow=none;dashed=1;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="250" y="100" as="sourcePoint" />
+            <mxPoint x="250" y="1750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- System (TanStack Query / Supabase Client) -->
+        <mxCell id="sys_head" value="He thong" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="420" y="60" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="sys_lifeline" value="" style="endArrow=none;dashed=1;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="470" y="100" as="sourcePoint" />
+            <mxPoint x="470" y="1750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Database -->
+        <mxCell id="db_head" value="Co so du lieu" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="620" y="50" width="90" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="db_lifeline" value="" style="endArrow=none;dashed=1;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="665" y="110" as="sourcePoint" />
+            <mxPoint x="665" y="1750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Background Service (Inngest) -->
+        <mxCell id="bg_head" value="Dich vu nen&#xa;(Inngest)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="820" y="60" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="bg_lifeline" value="" style="endArrow=none;dashed=1;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="870" y="100" as="sourcePoint" />
+            <mxPoint x="870" y="1750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ============== SECTION 1: SOFT DELETE (MOVE TO TRASH) ============== -->
+
+        <mxCell id="section1_label" value="1. XOA GHI CHU (CHUYEN VAO THUNG RAC)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="50" y="130" width="350" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Activation boxes for section 1 -->
+        <mxCell id="act_fe_1" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="245" y="160" width="10" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="act_sys_1" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="465" y="200" width="10" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="act_db_1" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="660" y="250" width="10" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Messages for soft delete -->
+        <mxCell id="msg1" value="1. Chon xoa ghi chu" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="85" y="170" as="sourcePoint" />
+            <mxPoint x="245" y="170" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg2" value="2. Cap nhat giao dien (an ghi chu khoi danh sach)" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="255" y="210" as="sourcePoint" />
+            <mxPoint x="465" y="210" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg3" value="3. Gui yeu cau xoa (dat deleted_at)" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="475" y="260" as="sourcePoint" />
+            <mxPoint x="660" y="260" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg4" value="4. Tra ve ket qua cap nhat" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="660" y="300" as="sourcePoint" />
+            <mxPoint x="475" y="300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Alt fragment for success/error -->
+        <mxCell id="alt1" value="alt" style="shape=umlFrame;whiteSpace=wrap;html=1;width=30;height=20;boundedLbl=1;verticalAlign=top;align=left;spacingTop=5;spacingLeft=5;fillColor=none;strokeColor=#000000;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="60" y="330" width="620" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="alt1_cond1" value="[Thanh cong]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;fontStyle=2;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="70" y="350" width="100" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="msg5" value="5. Hien thi thong bao va tuy chon hoan tac" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="245" y="375" as="sourcePoint" />
+            <mxPoint x="85" y="375" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="else1_line" value="" style="endArrow=none;dashed=1;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="60" y="395" as="sourcePoint" />
+            <mxPoint x="680" y="395" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="alt1_cond2" value="[That bai]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;fontStyle=2;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="70" y="398" width="100" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="msg6" value="6. Hien thi loi va khoi phuc giao dien" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="245" y="420" as="sourcePoint" />
+            <mxPoint x="85" y="420" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ============== SECTION 2: VIEW TRASH ============== -->
+
+        <mxCell id="section2_label" value="2. XEM DANH SACH THUNG RAC" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="50" y="460" width="300" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Activation boxes for section 2 -->
+        <mxCell id="act_fe_2" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="245" y="490" width="10" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="act_sys_2" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="465" y="520" width="10" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="act_db_2" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="660" y="530" width="10" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Messages for view trash -->
+        <mxCell id="msg7" value="7. Truy cap trang thung rac" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="85" y="500" as="sourcePoint" />
+            <mxPoint x="245" y="500" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg8" value="8. Truy van ghi chu da xoa" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="255" y="535" as="sourcePoint" />
+            <mxPoint x="660" y="535" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg9" value="9. Tra ve danh sach ghi chu trong thung rac" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="660" y="565" as="sourcePoint" />
+            <mxPoint x="255" y="565" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg10" value="10. Hien thi danh sach voi thoi gian xoa" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="245" y="610" as="sourcePoint" />
+            <mxPoint x="85" y="610" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ============== SECTION 3: RESTORE NOTE ============== -->
+
+        <mxCell id="section3_label" value="3. KHOI PHUC GHI CHU" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="50" y="640" width="300" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Activation boxes for section 3 -->
+        <mxCell id="act_fe_3" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="245" y="670" width="10" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="act_sys_3" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="465" y="710" width="10" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="act_db_3" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="660" y="740" width="10" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Messages for restore -->
+        <mxCell id="msg11" value="11. Chon khoi phuc ghi chu" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="85" y="680" as="sourcePoint" />
+            <mxPoint x="245" y="680" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg12" value="12. Cap nhat giao dien (chuyen ve danh sach ghi chu)" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="255" y="720" as="sourcePoint" />
+            <mxPoint x="465" y="720" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg13" value="13. Gui yeu cau khoi phuc (xoa deleted_at)" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="475" y="750" as="sourcePoint" />
+            <mxPoint x="660" y="750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg14" value="14. Tra ve ket qua khoi phuc" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="660" y="775" as="sourcePoint" />
+            <mxPoint x="475" y="775" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg15" value="15. Thong bao khoi phuc thanh cong" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="245" y="840" as="sourcePoint" />
+            <mxPoint x="85" y="840" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ============== SECTION 4: PERMANENT DELETE ============== -->
+
+        <mxCell id="section4_label" value="4. XOA VINH VIEN GHI CHU" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="50" y="870" width="300" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Activation boxes for section 4 -->
+        <mxCell id="act_fe_4" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="245" y="900" width="10" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="act_sys_4" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="465" y="980" width="10" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="act_db_4" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="660" y="1010" width="10" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Messages for permanent delete -->
+        <mxCell id="msg16" value="16. Chon xoa vinh vien" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="85" y="910" as="sourcePoint" />
+            <mxPoint x="245" y="910" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg17" value="17. Hien thi hop thoai xac nhan" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="245" y="945" as="sourcePoint" />
+            <mxPoint x="85" y="945" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg18" value="18. Xac nhan xoa" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="85" y="975" as="sourcePoint" />
+            <mxPoint x="245" y="975" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg19" value="19. Gui yeu cau xoa vinh vien" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="255" y="1020" as="sourcePoint" />
+            <mxPoint x="660" y="1020" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg20" value="20. Xoa du lieu khoi co so du lieu" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="660" y="1045" as="sourcePoint" />
+            <mxPoint x="255" y="1045" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg21" value="21. Thong bao xoa thanh cong" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="245" y="1110" as="sourcePoint" />
+            <mxPoint x="85" y="1110" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ============== SECTION 5: EMPTY TRASH ============== -->
+
+        <mxCell id="section5_label" value="5. LAM TRONG THUNG RAC" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="50" y="1140" width="300" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Activation boxes for section 5 -->
+        <mxCell id="act_fe_5" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="245" y="1170" width="10" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="act_sys_5" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="465" y="1250" width="10" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="act_db_5" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="660" y="1270" width="10" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Messages for empty trash -->
+        <mxCell id="msg22" value="22. Chon lam trong thung rac" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="85" y="1180" as="sourcePoint" />
+            <mxPoint x="245" y="1180" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg23" value="23. Hien thi xac nhan xoa tat ca ghi chu" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="245" y="1215" as="sourcePoint" />
+            <mxPoint x="85" y="1215" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg24" value="24. Xac nhan lam trong" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="85" y="1245" as="sourcePoint" />
+            <mxPoint x="245" y="1245" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg25" value="25. Xoa tat ca ghi chu trong thung rac" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="255" y="1280" as="sourcePoint" />
+            <mxPoint x="660" y="1280" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg26" value="26. Tra ve ket qua xoa" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="660" y="1305" as="sourcePoint" />
+            <mxPoint x="255" y="1305" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg27" value="27. Hien thi thung rac trong" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="245" y="1360" as="sourcePoint" />
+            <mxPoint x="85" y="1360" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ============== SECTION 6: AUTO-PURGE (BACKGROUND JOB) ============== -->
+
+        <mxCell id="section6_label" value="6. TU DONG DON DEP (CHAY NEN - 30 NGAY)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="50" y="1400" width="350" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Note about cron schedule -->
+        <mxCell id="cron_note" value="(Chay tu dong luc 2:00 AM hang ngay)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=2;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="50" y="1420" width="250" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Activation boxes for section 6 -->
+        <mxCell id="act_bg_6" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="865" y="1450" width="10" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="act_db_6" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="660" y="1490" width="10" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- Self-activation for cron trigger -->
+        <mxCell id="msg28" value="28. Kich hoat theo lich hen gio" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="875" y="1460" as="sourcePoint" />
+            <mxPoint x="875" y="1480" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="930" y="1460" />
+              <mxPoint x="930" y="1480" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg29" value="29. Truy van ghi chu het han (qua 30 ngay)" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="865" y="1500" as="sourcePoint" />
+            <mxPoint x="670" y="1500" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg30" value="30. Tra ve danh sach ghi chu het han" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="670" y="1540" as="sourcePoint" />
+            <mxPoint x="865" y="1540" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Opt fragment for expired notes -->
+        <mxCell id="opt1" value="opt" style="shape=umlFrame;whiteSpace=wrap;html=1;width=30;height=20;boundedLbl=1;verticalAlign=top;align=left;spacingTop=5;spacingLeft=5;fillColor=none;strokeColor=#000000;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="640" y="1555" width="290" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="opt1_label" value="[Co ghi chu het han]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;fontStyle=2;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="650" y="1575" width="150" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="msg31" value="31. Xoa vinh vien ghi chu het han" style="html=1;verticalAlign=bottom;endArrow=block;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="865" y="1600" as="sourcePoint" />
+            <mxPoint x="670" y="1600" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="msg32" value="32. Xac nhan xoa thanh cong" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="670" y="1630" as="sourcePoint" />
+            <mxPoint x="865" y="1630" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ============== LEGEND ============== -->
+        <mxCell id="legend_frame" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#000000;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="50" y="1680" width="400" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend_title" value="CHU THICH:" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1685" width="80" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend_sync" value="" style="endArrow=block;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="60" y="1715" as="sourcePoint" />
+            <mxPoint x="120" y="1715" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend_sync_label" value="Yeu cau" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="130" y="1705" width="60" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend_return" value="" style="endArrow=open;dashed=1;html=1;strokeWidth=1;strokeColor=#000000;endSize=8;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="200" y="1715" as="sourcePoint" />
+            <mxPoint x="260" y="1715" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend_return_label" value="Phan hoi" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="270" y="1705" width="60" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend_opt_label" value="opt/alt: Luong co dieu kien" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="340" y="1705" width="150" height="20" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

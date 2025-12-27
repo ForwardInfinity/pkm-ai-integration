@@ -15,6 +15,7 @@ Note-taking system implementing evolutionary epistemology (Popper/Deutsch)—kno
 - Test: `npm run test` — must pass
 
 ## Operating Rules
+- MUST start EVERY response with: <skills_scan>[relevant skill or "none"]</skills_scan> Then proceed.
 - CRITICAL: MUST take time to fully break down and analyze problems before attempting to solve them. Deeply understanding the problem is non-negotiable. Your thinking should be thorough and deep, so it's fine if it's very long
 - Avoid over-engineering. Keep solutions SIMPLE and focused while solving the problem
 - ALWAYS read and fully understand all relevant files before planning or performing any task. Do NOT make implicit assumptions or speculate about code you have not inspected. Be rigorous and persistent in searching code for key facts
@@ -31,7 +32,6 @@ Note-taking system implementing evolutionary epistemology (Popper/Deutsch)—kno
 - **Background Jobs**: Inngest
 - **Validation**: Zod
 - **Editor**: Tiptap + tiptap-markdown
-- **Graph**: React Flow (@xyflow/react)
 - **Testing**: Vitest, React Testing Library, Playwright
 
 ## Project Layout
@@ -39,7 +39,7 @@ Note-taking system implementing evolutionary epistemology (Popper/Deutsch)—kno
 ```
 app/                    # Next.js App Router (routes only)
   (auth)/               # Public: /login, /sign-up, /forgot-password
-  (dashboard)/          # Protected: /notes, /conflicts, /graph, /trash
+  (dashboard)/          # Protected: /notes, /conflicts, /trash
   (admin)/              # Admin: /admin
   api/                  # API routes (auth callbacks, inngest webhook)
 features/               # Feature modules (domain logic)

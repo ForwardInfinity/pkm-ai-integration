@@ -1,0 +1,363 @@
+<mxfile host="app.diagrams.net" modified="2024-12-22T00:00:00.000Z" agent="Mozilla/5.0" version="22.1.0" type="device">
+  <diagram id="embedding-pipeline-sequence" name="Sơ đồ tuần tự Embedding Pipeline">
+    <mxGraphModel dx="1434" dy="780" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- TITLE -->
+        <mxCell id="title" value="SƠ ĐỒ TUẦN TỰ: QUY TRÌNH TẠO EMBEDDING CHO GHI CHÚ" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="300" y="10" width="500" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- PARTICIPANTS -->
+
+        <!-- Sync Queue -->
+        <mxCell id="syncqueue_head" value="Hàng đợi&#xa;đồng bộ" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="60" y="60" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="syncqueue_lifeline" value="" style="endArrow=none;dashed=1;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="110" y="100" as="sourcePoint" />
+            <mxPoint x="110" y="1300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Server Action -->
+        <mxCell id="serveraction_head" value="Server Action&#xa;(Trigger Embedding)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="230" y="60" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="serveraction_lifeline" value="" style="endArrow=none;dashed=1;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="290" y="100" as="sourcePoint" />
+            <mxPoint x="290" y="1300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Database -->
+        <mxCell id="db_head" value="Cơ sở dữ liệu" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="420" y="50" width="100" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="db_lifeline" value="" style="endArrow=none;dashed=1;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="470" y="110" as="sourcePoint" />
+            <mxPoint x="470" y="1300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Inngest -->
+        <mxCell id="inngest_head" value="Inngest&#xa;(Xử lý nền)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="600" y="60" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="inngest_lifeline" value="" style="endArrow=none;dashed=1;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="650" y="100" as="sourcePoint" />
+            <mxPoint x="650" y="1300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- OpenRouter AI Service -->
+        <mxCell id="ai_head" value="Dịch vụ AI&#xa;(OpenRouter)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="780" y="60" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ai_lifeline" value="" style="endArrow=none;dashed=1;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="830" y="100" as="sourcePoint" />
+            <mxPoint x="830" y="1300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ACTIVATION BOXES -->
+
+        <!-- Sync Queue activation -->
+        <mxCell id="act_syncqueue" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="105" y="140" width="10" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Server Action activation 1 -->
+        <mxCell id="act_serveraction_1" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="285" y="150" width="10" height="350" as="geometry" />
+        </mxCell>
+
+        <!-- Database activation 1 -->
+        <mxCell id="act_db_1" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="465" y="220" width="10" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Database activation 2 -->
+        <mxCell id="act_db_2" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="465" y="380" width="10" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Inngest activation -->
+        <mxCell id="act_inngest" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="645" y="530" width="10" height="700" as="geometry" />
+        </mxCell>
+
+        <!-- Database activation 3 - for Inngest -->
+        <mxCell id="act_db_3" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="465" y="570" width="10" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Database activation 4 -->
+        <mxCell id="act_db_4" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="465" y="710" width="10" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- AI activation -->
+        <mxCell id="act_ai" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="825" y="870" width="10" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Database activation 5 -->
+        <mxCell id="act_db_5" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="465" y="980" width="10" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Database activation 6 -->
+        <mxCell id="act_db_6" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="465" y="1130" width="10" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- MESSAGES -->
+
+        <!-- Message 1: Sync Queue -> Server Action -->
+        <mxCell id="msg1" value="1. Kích hoạt tạo embedding cho ghi chú" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="115" y="160" as="sourcePoint" />
+            <mxPoint x="285" y="160" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 2: Self message - Server Action computes hash -->
+        <mxCell id="msg2" value="2. Tính toán hash nội dung" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="295" y="190" as="sourcePoint" />
+            <mxPoint x="295" y="210" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="350" y="190" />
+              <mxPoint x="350" y="210" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 3: Server Action -> Database -->
+        <mxCell id="msg3" value="3. Kiểm tra trạng thái embedding hiện tại" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="295" y="230" as="sourcePoint" />
+            <mxPoint x="465" y="230" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 4: Database -> Server Action -->
+        <mxCell id="msg4" value="4. Trả về trạng thái và hash hiện tại" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="465" y="260" as="sourcePoint" />
+            <mxPoint x="295" y="260" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ALT FRAGMENT 1: Already up-to-date -->
+        <mxCell id="alt1_frame" value="alt" style="shape=umlFrame;whiteSpace=wrap;html=1;width=30;height=20;boundedLbl=1;verticalAlign=top;align=left;spacingTop=5;spacingLeft=5;fillColor=none;strokeColor=#000000;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="50" y="290" width="430" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="alt1_label" value="[Embedding đã cập nhật với cùng hash]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;overflow=hidden;fontStyle=2;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="310" width="220" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Message 5: Return skip -->
+        <mxCell id="msg5" value="5. Trả về bỏ qua (embedding đã cập nhật)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="285" y="345" as="sourcePoint" />
+            <mxPoint x="115" y="345" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ALT FRAGMENT 2: Need to generate embedding -->
+        <mxCell id="alt2_frame" value="alt" style="shape=umlFrame;whiteSpace=wrap;html=1;width=30;height=20;boundedLbl=1;verticalAlign=top;align=left;spacingTop=5;spacingLeft=5;fillColor=none;strokeColor=#000000;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="50" y="380" width="840" height="870" as="geometry" />
+        </mxCell>
+
+        <mxCell id="alt2_label" value="[Cần tạo embedding mới]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;overflow=hidden;fontStyle=2;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="400" width="180" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Message 6: Server Action -> Database (update pending) -->
+        <mxCell id="msg6" value="6. Cập nhật trạng thái &quot;pending&quot; và hash" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="295" y="430" as="sourcePoint" />
+            <mxPoint x="465" y="430" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 7: Database -> Server Action -->
+        <mxCell id="msg7" value="7. Xác nhận cập nhật thành công" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="465" y="460" as="sourcePoint" />
+            <mxPoint x="295" y="460" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 8: Server Action -> Inngest (send event) -->
+        <mxCell id="msg8" value="8. Gửi sự kiện &quot;embedding.requested&quot;" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="295" y="490" as="sourcePoint" />
+            <mxPoint x="645" y="490" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Note: Async processing -->
+        <mxCell id="note_async" value="Xử lý bất đồng bộ" style="text;html=1;strokeColor=none;fillColor=#FFFFCC;align=center;verticalAlign=middle;rounded=0;fontStyle=2;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="420" y="502" width="100" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Message 9: Return success to sync queue -->
+        <mxCell id="msg9" value="9. Trả về thành công (đã gửi sự kiện)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="285" y="540" as="sourcePoint" />
+            <mxPoint x="115" y="540" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 10: Inngest -> Database (fetch note) -->
+        <mxCell id="msg10" value="10. Lấy thông tin ghi chú" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="645" y="580" as="sourcePoint" />
+            <mxPoint x="475" y="580" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 11: Database -> Inngest -->
+        <mxCell id="msg11" value="11. Trả về dữ liệu ghi chú" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="475" y="610" as="sourcePoint" />
+            <mxPoint x="645" y="610" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 12: Self message - Inngest verify hash -->
+        <mxCell id="msg12" value="12. Xác minh hash nội dung" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="655" y="650" as="sourcePoint" />
+            <mxPoint x="655" y="680" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="720" y="650" />
+              <mxPoint x="720" y="680" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 13: Inngest -> Database (mark processing) -->
+        <mxCell id="msg13" value="13. Cập nhật trạng thái &quot;processing&quot;" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="645" y="720" as="sourcePoint" />
+            <mxPoint x="475" y="720" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 14: Database -> Inngest -->
+        <mxCell id="msg14" value="14. Xác nhận cập nhật" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="475" y="750" as="sourcePoint" />
+            <mxPoint x="645" y="750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 15: Self message - Inngest chunk text -->
+        <mxCell id="msg15" value="15. Chia nhỏ nội dung thành chunks" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="655" y="790" as="sourcePoint" />
+            <mxPoint x="655" y="820" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="740" y="790" />
+              <mxPoint x="740" y="820" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- LOOP FRAGMENT: For each chunk -->
+        <mxCell id="loop_frame" value="loop" style="shape=umlFrame;whiteSpace=wrap;html=1;width=35;height=20;boundedLbl=1;verticalAlign=top;align=left;spacingTop=5;spacingLeft=5;fillColor=none;strokeColor=#000000;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="560" y="850" width="310" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="loop_label" value="[Với mỗi chunk nội dung]" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;overflow=hidden;fontStyle=2;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="570" y="870" width="160" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Message 16: Inngest -> OpenRouter -->
+        <mxCell id="msg16" value="16. Gửi yêu cầu tạo embedding" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="655" y="900" as="sourcePoint" />
+            <mxPoint x="825" y="900" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 17: OpenRouter -> Inngest -->
+        <mxCell id="msg17" value="17. Trả về vector embedding" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="825" y="930" as="sourcePoint" />
+            <mxPoint x="655" y="930" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 18: Inngest -> Database (store chunks) -->
+        <mxCell id="msg18" value="18. Lưu chunks embedding vào bảng note_chunks" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="645" y="990" as="sourcePoint" />
+            <mxPoint x="475" y="990" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 19: Database -> Inngest -->
+        <mxCell id="msg19" value="19. Xác nhận lưu chunks" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="475" y="1020" as="sourcePoint" />
+            <mxPoint x="645" y="1020" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 20: Self message - Mean pooling -->
+        <mxCell id="msg20" value="20. Tính embedding tổng hợp (mean pooling)" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="655" y="1060" as="sourcePoint" />
+            <mxPoint x="655" y="1090" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="760" y="1060" />
+              <mxPoint x="760" y="1090" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 21: Inngest -> Database (store aggregate) -->
+        <mxCell id="msg21" value="21. Cập nhật embedding tổng hợp và trạng thái &quot;completed&quot;" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="645" y="1140" as="sourcePoint" />
+            <mxPoint x="475" y="1140" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 22: Database -> Inngest -->
+        <mxCell id="msg22" value="22. Xác nhận hoàn thành" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="475" y="1180" as="sourcePoint" />
+            <mxPoint x="645" y="1180" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Message 23: Emit completed event -->
+        <mxCell id="msg23" value="23. Phát sự kiện &quot;embedding.completed&quot;" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=none;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="655" y="1210" as="sourcePoint" />
+            <mxPoint x="655" y="1240" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="750" y="1210" />
+              <mxPoint x="750" y="1240" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

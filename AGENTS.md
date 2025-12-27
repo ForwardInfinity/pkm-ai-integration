@@ -17,6 +17,12 @@ Note-taking system implementing evolutionary epistemology (Popper/Deutsch)—kno
 - IMPORTANT: ALWAYS use `ref` MCP to check docs before writing code for: Tiptap, Vercel AI SDK, Inngest and React Flow
 - Must write tests for new functionality (tests go in `tests/` directory, not colocated). Tests are there to verify correctness, not to define the solution. Focus on understanding the problem requirements and implementing the correct algorithm. Provide a principled implementation that follows best practices and software design principles.
 
+## Skills Rule
+
+Start EVERY response with:
+<skills_scan>[relevant skill or "none"]</skills_scan>
+Then proceed.
+
 ## Tech Stack
 
 - **Framework**: Next.js 15 (App Router), React 19, TypeScript
@@ -27,7 +33,6 @@ Note-taking system implementing evolutionary epistemology (Popper/Deutsch)—kno
 - **Background Jobs**: Inngest
 - **Validation**: Zod
 - **Editor**: Tiptap + tiptap-markdown
-- **Graph**: React Flow (@xyflow/react)
 - **Testing**: Vitest, React Testing Library, Playwright
 
 ## Project Layout
@@ -35,7 +40,7 @@ Note-taking system implementing evolutionary epistemology (Popper/Deutsch)—kno
 ```
 app/                    # Next.js App Router (routes only)
   (auth)/               # Public: /login, /sign-up, /forgot-password
-  (dashboard)/          # Protected: /notes, /conflicts, /graph, /trash
+  (dashboard)/          # Protected: /notes, /conflicts, /trash
   (admin)/              # Admin: /admin
   api/                  # API routes (auth callbacks, inngest webhook)
 features/               # Feature modules (domain logic)

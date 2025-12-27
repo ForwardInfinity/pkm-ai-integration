@@ -15,10 +15,17 @@ function FadeIn({
   delay?: number; 
   className?: string;
 }) {
+  const [hasMounted, setHasMounted] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasMounted) return;
+    
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -32,14 +39,14 @@ function FadeIn({
     if (ref.current) observer.observe(ref.current);
 
     return () => observer.disconnect();
-  }, [delay]);
+  }, [delay, hasMounted]);
 
   return (
     <div
       ref={ref}
       className={cn(
         "transition-all duration-1000 ease-out transform",
-        isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8",
+        hasMounted && isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8",
         className
       )}
     >
@@ -49,10 +56,13 @@ function FadeIn({
 }
 
 export function LandingPage() {
+  const [hasMounted, setHasMounted] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
+    setHasMounted(true);
     const handleScroll = () => setScrolled(window.scrollY > 50);
+    handleScroll();
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -63,7 +73,7 @@ export function LandingPage() {
       <nav 
         className={cn(
           "fixed top-0 w-full z-50 transition-all duration-300 border-b",
-          scrolled 
+          hasMounted && scrolled 
             ? "bg-white/80 backdrop-blur-md border-black/5 py-3" 
             : "bg-transparent border-transparent py-5"
         )}

@@ -16,12 +16,7 @@ Note-taking system implementing evolutionary epistemology (Popper/Deutsch)—kno
 - ALWAYS read and fully understand all relevant files before planning or performing any task. Do NOT make implicit assumptions or speculate about code you have not inspected. Be rigorous and persistent in searching code for key facts
 - IMPORTANT: ALWAYS use `ref` MCP to check docs before writing code for: Tiptap, Vercel AI SDK, Inngest and React Flow
 - Must write tests for new functionality (tests go in `tests/` directory, not colocated). Tests are there to verify correctness, not to define the solution. Focus on understanding the problem requirements and implementing the correct algorithm. Provide a principled implementation that follows best practices and software design principles.
-
-## Skills Rule
-
-Start EVERY response with:
-<skills_scan>[relevant skill or "none"]</skills_scan>
-Then proceed.
+- Use skills and MCP PROACTIVELY and targeted when beneficial. Do NOT wait to be asked.
 
 ## Tech Stack
 

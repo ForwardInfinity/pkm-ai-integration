@@ -222,6 +222,67 @@ describe('NoteEditor', () => {
     })
   })
 
+  it('surfaces version-conflicted drafts without auto-retrying them', async () => {
+    const conflictedDraft: LocalNote = {
+      id: 'note-123',
+      title: 'Conflicted local title',
+      problem: 'Conflicted local problem',
+      content: 'Conflicted local content',
+      wordCount: 3,
+      tags: ['tag'],
+      updatedAt: Date.now(),
+      syncStatus: 'error',
+      syncError: 'version-conflict',
+      syncErrorMessage:
+        'This local draft could not sync because the note changed elsewhere.',
+      latestServerVersion: '2024-01-02T00:00:00Z',
+    }
+
+    mockUseNote.mockReturnValue({
+      data: {
+        id: 'note-123',
+        user_id: 'user-1',
+        title: 'Server title',
+        problem: 'Server problem',
+        content: 'Server content',
+        tags: [],
+        is_pinned: false,
+        word_count: 2,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-02T00:00:00Z',
+        deleted_at: null,
+        embedding: null,
+        embedding_content_hash: null,
+        embedding_error: null,
+        embedding_model: null,
+        embedding_requested_at: null,
+        embedding_status: 'pending',
+        embedding_updated_at: null,
+        fts: null,
+      },
+      isLoading: false,
+      error: null,
+    })
+    mockGetNoteLocally.mockResolvedValue(conflictedDraft)
+
+    useTabsStore.setState({
+      tabs: [{ id: 'tab-1', noteId: 'note-123', title: 'Conflicted local title' }],
+      activeTabId: 'tab-1',
+      showListView: false,
+    })
+
+    render(<NoteEditor noteId="note-123" tabId="tab-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Conflicted local title')).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'This local draft could not sync because the note changed elsewhere.'
+    )
+    expect(mockRequeueRecoveredNote).not.toHaveBeenCalled()
+  })
+
   it('reconnects the latest unsynced temp draft on /notes/new', async () => {
     const recoveredDraft: LocalNote = {
       id: 'temp_session_1',

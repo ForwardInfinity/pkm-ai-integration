@@ -9,6 +9,7 @@ import {
 } from './index'
 import {
   getNoteLocally,
+  markNoteConflict,
   markNoteSynced,
   markNoteError,
   updateNoteIdMapping,
@@ -35,8 +36,21 @@ const SYNC_DEBOUNCE_MS = 2000
 const MAX_RETRIES = 3
 const BROADCAST_CHANNEL_NAME_PREFIX = 'refinery-notes-sync'
 const TEMP_ID_MAPPING_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+const VERSION_CONFLICT_ERROR = 'VERSION_CONFLICT'
+const VERSION_CONFLICT_MESSAGE =
+  'This local draft could not sync because the note changed elsewhere. Reload the latest server version and merge your changes manually.'
 
 type NoteChangeListener = (noteId: string, data: Partial<LocalNote>) => void
+
+class VersionConflictError extends Error {
+  constructor(
+    readonly localNoteId: string,
+    readonly currentServerVersion?: string
+  ) {
+    super(VERSION_CONFLICT_ERROR)
+    this.name = 'VersionConflictError'
+  }
+}
 
 function shouldRefreshDerivedData(item: SyncQueueItem): boolean {
   if (item.operation === 'create') {
@@ -372,6 +386,42 @@ class SyncQueue {
     }
   }
 
+  private async getCurrentServerNoteState(
+    supabase: ReturnType<typeof createClient>,
+    noteId: string
+  ): Promise<Pick<Note, 'id' | 'updated_at' | 'deleted_at'> | null> {
+    const { data, error } = await supabase
+      .from('notes')
+      .select('id, updated_at, deleted_at')
+      .eq('id', noteId)
+      .maybeSingle()
+
+    if (error) {
+      throw error
+    }
+
+    return data
+  }
+
+  private async persistVersionConflict(
+    db: Awaited<ReturnType<typeof getDB>>,
+    item: SyncQueueItem,
+    localNoteId: string,
+    currentServerVersion?: string
+  ): Promise<void> {
+    await markNoteConflict(localNoteId, {
+      serverVersion: currentServerVersion,
+      message: VERSION_CONFLICT_MESSAGE,
+    })
+
+    if (item.id !== undefined) {
+      await db.put('syncQueue', {
+        ...item,
+        lastError: VERSION_CONFLICT_ERROR,
+      })
+    }
+  }
+
   private async processQueueInternal(expectedUserId: string): Promise<void> {
     if (this.isProcessing) return
     this.isProcessing = true
@@ -404,6 +454,25 @@ class SyncQueue {
             await db.delete('syncQueue', currentItem.id)
           }
         } catch (error) {
+          if (error instanceof VersionConflictError) {
+            const persistedItem =
+              currentItem.id !== undefined
+                ? await db.get('syncQueue', currentItem.id)
+                : currentItem
+
+            if (!persistedItem) {
+              continue
+            }
+
+            await this.persistVersionConflict(
+              db,
+              persistedItem,
+              error.localNoteId,
+              error.currentServerVersion
+            )
+            continue
+          }
+
           // Handle both Error instances and Supabase error objects ({ message: string })
           const errorMessage =
             error instanceof Error
@@ -605,6 +674,27 @@ class SyncQueue {
         }
       }
 
+      const localNote =
+        await getNoteLocally(serverNoteId) ??
+        (serverNoteId !== item.noteId ? await getNoteLocally(item.noteId) : undefined)
+      const localNoteId = localNote?.id ?? serverNoteId
+      const expectedServerVersion = localNote?.serverVersion
+
+      if (!expectedServerVersion) {
+        const currentServerNote = await this.getCurrentServerNoteState(
+          supabase,
+          serverNoteId
+        )
+
+        if (!currentServerNote || currentServerNote.deleted_at) {
+          console.debug('Skipping sync for trashed or missing note:', serverNoteId)
+          await this.removeNotes([serverNoteId])
+          return
+        }
+
+        throw new VersionConflictError(localNoteId, currentServerNote.updated_at)
+      }
+
       const updateData: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       }
@@ -619,6 +709,7 @@ class SyncQueue {
         .from('notes')
         .update(updateData)
         .eq('id', serverNoteId)
+        .eq('updated_at', expectedServerVersion)
         .is('deleted_at', null)
         .select()
         .maybeSingle()
@@ -626,9 +717,22 @@ class SyncQueue {
       if (error) throw error
 
       if (!updated) {
-        console.debug('Skipping sync for trashed or missing note:', serverNoteId)
-        await this.removeNotes([serverNoteId])
-        return
+        const currentServerNote = await this.getCurrentServerNoteState(
+          supabase,
+          serverNoteId
+        )
+
+        if (!currentServerNote || currentServerNote.deleted_at) {
+          console.debug('Skipping sync for trashed or missing note:', serverNoteId)
+          await this.removeNotes([serverNoteId])
+          return
+        }
+
+        if (currentServerNote.updated_at !== expectedServerVersion) {
+          throw new VersionConflictError(localNoteId, currentServerNote.updated_at)
+        }
+
+        throw new Error(`Failed to update note: ${serverNoteId}`)
       }
 
       await markNoteSynced(serverNoteId, updated.updated_at)

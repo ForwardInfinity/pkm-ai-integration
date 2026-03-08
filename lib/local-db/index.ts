@@ -2,6 +2,7 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb'
 import { createClient } from '@/lib/supabase/client'
 
 export type SyncStatus = 'synced' | 'pending' | 'error'
+export type LocalNoteSyncError = 'version-conflict'
 
 export interface LocalNote {
   id: string
@@ -14,6 +15,9 @@ export interface LocalNote {
   updatedAt: number // Local timestamp for ordering
   syncStatus: SyncStatus
   serverVersion?: string // updated_at from server for conflict detection
+  syncError?: LocalNoteSyncError
+  syncErrorMessage?: string
+  latestServerVersion?: string
 }
 
 export interface SyncQueueItem {

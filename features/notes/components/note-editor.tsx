@@ -43,6 +43,10 @@ function isRecoverableLocalDraft(
     (localNote.syncStatus === 'pending' || localNote.syncStatus === 'error')
 }
 
+function hasVersionConflict(localNote: LocalNote | undefined): boolean {
+  return localNote?.syncError === 'version-conflict'
+}
+
 export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   const isNewNote = noteId === 'new'
   const isUnsavedNote = isUnsavedNoteId(noteId)
@@ -146,6 +150,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   const [problem, setProblem] = useState('')
   const [content, setContent] = useState('')
   const [isRecovering, setIsRecovering] = useState(true)
+  const [syncConflictMessage, setSyncConflictMessage] = useState<string | null>(null)
 
   // Draft bookkeeping for the shared inspector state
   const latestDraftRef = useRef({ title: '', problem: '', content: '' })
@@ -157,11 +162,22 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   }, [])
 
   const recoverLocalDraft = useCallback(async (localNote: LocalNote) => {
+    const conflicted = hasVersionConflict(localNote)
+
     hasRecoveredLocalDraftRef.current = true
     setTitle(localNote.title)
     setProblem(localNote.problem ?? '')
     setContent(localNote.content)
-    await requeueRecoveredNote(localNote)
+    setSyncConflictMessage(
+      conflicted
+        ? localNote.syncErrorMessage ??
+            'This local draft could not sync because the note changed elsewhere. Reload the latest server version and merge your changes manually.'
+        : null
+    )
+
+    if (!conflicted) {
+      await requeueRecoveredNote(localNote)
+    }
   }, [])
 
   useEffect(() => {
@@ -170,6 +186,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
 
   useEffect(() => {
     setResolvedTempNoteId(null)
+    setSyncConflictMessage(null)
   }, [noteId])
 
   // AI problem reconstruction
@@ -224,6 +241,16 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   // Auto-save hook with tab sync
   const { save, getServerId } = useAutoSave({
     noteId: localNoteId,
+    serverSnapshot: note && !isUnsavedNote
+      ? {
+          title: note.title ?? '',
+          problem: note.problem,
+          content: note.content ?? '',
+          wordCount: note.word_count ?? 0,
+          tags: note.tags ?? [],
+          serverVersion: note.updated_at,
+        }
+      : undefined,
     onExternalChange: useCallback((data: Partial<LocalNote>) => {
       // Update local state from other tabs
       if (data.title !== undefined) setTitle(data.title)
@@ -355,6 +382,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
           setResolvedTempNoteId(freshTempNoteId)
           setCurrentSessionTempDraftId(freshTempNoteId)
           hasRecoveredLocalDraftRef.current = false
+          setSyncConflictMessage(null)
           setTitle('')
           setProblem('')
           setContent('')
@@ -365,6 +393,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
         setResolvedTempNoteId(generatedTempNoteId)
         setCurrentSessionTempDraftId(generatedTempNoteId)
         hasRecoveredLocalDraftRef.current = false
+        setSyncConflictMessage(null)
         setTitle('')
         setProblem('')
         setContent('')
@@ -398,10 +427,12 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
           await recoverLocalDraft(localNote)
         } else {
           hasRecoveredLocalDraftRef.current = false
+          setSyncConflictMessage(null)
         }
       } catch {
         if (!isCancelled) {
           hasRecoveredLocalDraftRef.current = false
+          setSyncConflictMessage(null)
         }
       } finally {
         if (!isCancelled) {
@@ -430,6 +461,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
         hasRecoveredLocalDraftRef.current = hasRecoverableLocalDraft
 
         if (!hasRecoverableLocalDraft) {
+          setSyncConflictMessage(null)
           setTitle(note.title ?? '')
           setProblem(note.problem ?? '')
           setContent(note.content ?? '')
@@ -685,6 +717,16 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
             isCleaning && "note-cleaning"
           )}
         >
+          {syncConflictMessage && (
+            <div
+              role="alert"
+              className="mb-6 flex items-start gap-3 rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>{syncConflictMessage}</p>
+            </div>
+          )}
+
           {/* Actions - top right */}
           {!isUnsavedNote && note && (
             <div className="absolute top-4 right-4 flex items-center gap-2">

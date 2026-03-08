@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef } from 'react'
-import { saveNoteLocally, getNoteLocally } from '@/lib/local-db/note-cache'
+import { mergeNoteLocally, type LocalNoteSeed } from '@/lib/local-db/note-cache'
 import { getSyncQueue, NoteChangeListener } from '@/lib/local-db/sync-queue'
 import { LocalNote } from '@/lib/local-db'
 import { getBrowserQueryClient } from '@/lib/query-client'
@@ -11,6 +11,7 @@ import type { NoteListItem } from '../types'
 interface UseAutoSaveOptions {
   noteId: string
   onExternalChange?: (data: Partial<LocalNote>) => void
+  serverSnapshot?: LocalNoteSeed
 }
 
 interface SaveData {
@@ -21,7 +22,11 @@ interface SaveData {
   tags?: string[]
 }
 
-export function useAutoSave({ noteId, onExternalChange }: UseAutoSaveOptions) {
+export function useAutoSave({
+  noteId,
+  onExternalChange,
+  serverSnapshot,
+}: UseAutoSaveOptions) {
   const syncQueueRef = useRef<ReturnType<typeof getSyncQueue> | null>(null)
 
   // Initialize sync queue
@@ -47,23 +52,9 @@ export function useAutoSave({ noteId, onExternalChange }: UseAutoSaveOptions) {
   const save = useCallback(
     async (data: SaveData) => {
       // Get current local state to merge with
-      const existing = await getNoteLocally(noteId)
-
-      const localNote: LocalNote = {
-        id: noteId,
-        title: data.title ?? existing?.title ?? '',
-        problem: data.problem !== undefined ? data.problem : (existing?.problem ?? null),
-        content: data.content ?? existing?.content ?? '',
-        wordCount: data.wordCount ?? existing?.wordCount ?? 0,
-        tags: data.tags ?? existing?.tags ?? [],
-        updatedAt: Date.now(),
-        syncStatus: 'pending',
-        tempId: noteId.startsWith('temp_') ? noteId : undefined,
-        serverVersion: existing?.serverVersion,
-      }
-
-      // 1. Immediately persist to IndexedDB
-      await saveNoteLocally(localNote)
+      const localNote = await mergeNoteLocally(noteId, data, {
+        seed: serverSnapshot,
+      })
 
       // 2. Check if we have a server ID mapping (after CREATE sync completed)
       const syncQueue = getSyncQueue()
@@ -112,7 +103,7 @@ export function useAutoSave({ noteId, onExternalChange }: UseAutoSaveOptions) {
       // 4. Queue for server sync (debounced internally)
       await syncQueue.enqueue(noteId, data)
     },
-    [noteId]
+    [noteId, serverSnapshot]
   )
 
   // Get the server ID for a temp ID (after creation)

@@ -89,6 +89,7 @@ vi.mock('@/lib/note-analysis-refresh', () => ({
 // Mock note-cache
 vi.mock('@/lib/local-db/note-cache', () => ({
   getNoteLocally: vi.fn(),
+  markNoteConflict: vi.fn(),
   markNoteSynced: vi.fn(),
   markNoteError: vi.fn(),
   updateNoteIdMapping: vi.fn(),
@@ -187,6 +188,19 @@ describe('sync-queue', () => {
 
     const noteCacheModule = await import('@/lib/local-db/note-cache')
     getNoteLocally = noteCacheModule.getNoteLocally as typeof getNoteLocally
+    ;(getNoteLocally as ReturnType<typeof vi.fn>).mockImplementation(
+      async (id: string) => ({
+        id,
+        title: 'Local title',
+        problem: null,
+        content: 'Local content',
+        wordCount: 2,
+        tags: [],
+        updatedAt: Date.now(),
+        syncStatus: 'pending',
+        serverVersion: '2024-01-01T00:00:00Z',
+      })
+    )
   })
 
   afterEach(() => {
@@ -506,6 +520,69 @@ describe('sync-queue', () => {
       expect(putCall![1].lastError).toBe('Server error')
     })
 
+    it('should persist version conflicts instead of overwriting newer server state', async () => {
+      const { markNoteConflict } = await import('@/lib/local-db/note-cache')
+
+      const queueItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'server-uuid-123',
+        operation: 'update',
+        data: { title: 'Updated Title' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+
+      setQueueItems([queueItem])
+      ;(getNoteLocally as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 'server-uuid-123',
+        title: 'Local title',
+        problem: null,
+        content: 'Local content',
+        wordCount: 2,
+        tags: [],
+        updatedAt: Date.now(),
+        syncStatus: 'pending',
+        serverVersion: '2024-01-01T00:00:00Z',
+      } satisfies LocalNote)
+      mockSupabaseChain.maybeSingle
+        .mockResolvedValueOnce({
+          data: null,
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: {
+            id: 'server-uuid-123',
+            updated_at: '2024-01-02T00:00:00Z',
+            deleted_at: null,
+          },
+          error: null,
+        })
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      expect(mockSupabaseChain.eq).toHaveBeenCalledWith(
+        'updated_at',
+        '2024-01-01T00:00:00Z'
+      )
+      expect(markNoteConflict).toHaveBeenCalledWith(
+        'server-uuid-123',
+        expect.objectContaining({
+          serverVersion: '2024-01-02T00:00:00Z',
+        })
+      )
+      expect(mockDB.put).toHaveBeenCalledWith(
+        'syncQueue',
+        expect.objectContaining({
+          noteId: 'server-uuid-123',
+          lastError: 'VERSION_CONFLICT',
+        })
+      )
+      expect(mockDB.delete).not.toHaveBeenCalledWith('syncQueue', 1)
+      expect(mockTriggerEmbeddingGeneration).not.toHaveBeenCalled()
+      expect(mockSyncNoteLinks).not.toHaveBeenCalled()
+    })
+
     it('should remove queued update and skip side effects for trashed notes', async () => {
       const queueItem: SyncQueueItem = {
         id: 1,
@@ -517,10 +594,15 @@ describe('sync-queue', () => {
       }
 
       setQueueItems([queueItem])
-      mockSupabaseChain.maybeSingle.mockResolvedValue({
-        data: null,
-        error: null,
-      })
+      mockSupabaseChain.maybeSingle
+        .mockResolvedValueOnce({
+          data: null,
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: null,
+          error: null,
+        })
 
       const syncQueue = getSyncQueue()
       await syncQueue.processQueue()

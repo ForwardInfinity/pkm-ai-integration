@@ -35,12 +35,14 @@ import {
 
 import {
   saveNoteLocally,
+  mergeNoteLocally,
   getNoteLocally,
   deleteNoteLocally,
   getPendingNotes,
   getErrorNotes,
   markNoteSynced,
   markNoteError,
+  markNoteConflict,
   updateNoteIdMapping,
   getAllLocalNotes,
   saveIdMapping,
@@ -84,16 +86,107 @@ describe('note-cache', () => {
     it('should save a note to IndexedDB', async () => {
       await saveNoteLocally(mockNote)
 
-      expect(mockDB.put).toHaveBeenCalledWith('notes', mockNote)
+      expect(mockDB.transaction).toHaveBeenCalledWith('notes', 'readwrite')
+      expect(mockStore.put).toHaveBeenCalledWith(mockNote)
     })
 
     it('should persist tags on the local note payload', async () => {
       await saveNoteLocally(mockNote)
 
-      expect(mockDB.put).toHaveBeenCalledWith('notes', expect.objectContaining({
+      expect(mockStore.put).toHaveBeenCalledWith(expect.objectContaining({
         id: 'note-123',
         tags: ['test-tag'],
       }))
+    })
+  })
+
+  describe('mergeNoteLocally', () => {
+    it('should seed the first persisted draft from the server snapshot', async () => {
+      const result = await mergeNoteLocally(
+        'note-123',
+        { title: 'Recovered title' },
+        {
+          seed: {
+            title: 'Server title',
+            problem: 'Server problem',
+            content: 'Server content',
+            wordCount: 2,
+            tags: ['server-tag'],
+            serverVersion: '2024-01-01T00:00:00Z',
+          },
+        }
+      )
+
+      expect(mockStore.put).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'note-123',
+        title: 'Recovered title',
+        problem: 'Server problem',
+        content: 'Server content',
+        wordCount: 2,
+        tags: ['server-tag'],
+        syncStatus: 'pending',
+        serverVersion: '2024-01-01T00:00:00Z',
+      }))
+      expect(result).toMatchObject({
+        id: 'note-123',
+        title: 'Recovered title',
+        content: 'Server content',
+        serverVersion: '2024-01-01T00:00:00Z',
+      })
+    })
+
+    it('serializes overlapping saves for the same note', async () => {
+      const persistedNotes = new Map<string, LocalNote>()
+      let releaseFirstGet: (() => void) | null = null
+      const firstGet = new Promise<void>((resolve) => {
+        releaseFirstGet = resolve
+      })
+      let getCalls = 0
+
+      mockStore.get.mockImplementation(async (id: string) => {
+        getCalls += 1
+        if (getCalls === 1) {
+          await firstGet
+        }
+
+        return persistedNotes.get(id)
+      })
+      mockStore.put.mockImplementation(async (note: LocalNote) => {
+        persistedNotes.set(note.id, note)
+      })
+
+      const seed = {
+        title: 'Server title',
+        problem: null,
+        content: 'Server content',
+        wordCount: 2,
+        tags: ['seed-tag'],
+        serverVersion: '2024-01-01T00:00:00Z',
+      }
+
+      const firstSave = mergeNoteLocally(
+        'note-123',
+        { title: 'Updated title' },
+        { seed }
+      )
+      const secondSave = mergeNoteLocally(
+        'note-123',
+        { content: 'Updated content' },
+        { seed }
+      )
+
+      await Promise.resolve()
+      releaseFirstGet?.()
+      await Promise.all([firstSave, secondSave])
+
+      expect(persistedNotes.get('note-123')).toMatchObject({
+        id: 'note-123',
+        title: 'Updated title',
+        content: 'Updated content',
+        problem: null,
+        tags: ['seed-tag'],
+        serverVersion: '2024-01-01T00:00:00Z',
+      })
     })
   })
 
@@ -158,46 +251,66 @@ describe('note-cache', () => {
 
   describe('markNoteSynced', () => {
     it('should update sync status to synced', async () => {
-      mockDB.get.mockResolvedValue(mockNote)
+      mockStore.get.mockResolvedValue(mockNote)
 
       await markNoteSynced('note-123', '2024-01-01T00:00:00Z')
 
-      expect(mockDB.get).toHaveBeenCalledWith('notes', 'note-123')
-      expect(mockDB.put).toHaveBeenCalledWith('notes', {
+      expect(mockStore.get).toHaveBeenCalledWith('note-123')
+      expect(mockStore.put).toHaveBeenCalledWith(expect.objectContaining({
         ...mockNote,
         syncStatus: 'synced',
         serverVersion: '2024-01-01T00:00:00Z',
-      })
+      }))
     })
 
     it('should do nothing if note does not exist', async () => {
-      mockDB.get.mockResolvedValue(undefined)
+      mockStore.get.mockResolvedValue(undefined)
 
       await markNoteSynced('non-existent', '2024-01-01T00:00:00Z')
 
-      expect(mockDB.put).not.toHaveBeenCalled()
+      expect(mockStore.put).not.toHaveBeenCalled()
     })
   })
 
   describe('markNoteError', () => {
     it('should update sync status to error', async () => {
-      mockDB.get.mockResolvedValue(mockNote)
+      mockStore.get.mockResolvedValue(mockNote)
 
       await markNoteError('note-123')
 
-      expect(mockDB.get).toHaveBeenCalledWith('notes', 'note-123')
-      expect(mockDB.put).toHaveBeenCalledWith('notes', {
+      expect(mockStore.get).toHaveBeenCalledWith('note-123')
+      expect(mockStore.put).toHaveBeenCalledWith(expect.objectContaining({
         ...mockNote,
         syncStatus: 'error',
-      })
+      }))
     })
 
     it('should do nothing if note does not exist', async () => {
-      mockDB.get.mockResolvedValue(undefined)
+      mockStore.get.mockResolvedValue(undefined)
 
       await markNoteError('non-existent')
 
-      expect(mockDB.put).not.toHaveBeenCalled()
+      expect(mockStore.put).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('markNoteConflict', () => {
+    it('should persist version-conflict metadata on the local note', async () => {
+      mockStore.get.mockResolvedValue(mockNote)
+
+      await markNoteConflict('note-123', {
+        serverVersion: '2024-01-02T00:00:00Z',
+        message: 'This local draft could not sync because the note changed elsewhere.',
+      })
+
+      expect(mockStore.put).toHaveBeenCalledWith(expect.objectContaining({
+        ...mockNote,
+        syncStatus: 'error',
+        syncError: 'version-conflict',
+        syncErrorMessage:
+          'This local draft could not sync because the note changed elsewhere.',
+        latestServerVersion: '2024-01-02T00:00:00Z',
+      }))
     })
   })
 

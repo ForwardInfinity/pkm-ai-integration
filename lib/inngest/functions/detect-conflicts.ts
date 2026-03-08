@@ -1,35 +1,20 @@
-import { createHash } from 'crypto'
 import { inngest } from '../client'
 import { NonRetriableError } from 'inngest'
 import { createClient } from '@supabase/supabase-js'
 import { NoObjectGeneratedError } from 'ai'
 import type { Database } from '@/types/database.types'
 import { judgeNotePair, type NoteForJudgment } from '@/lib/ai/conflict-judgment'
+import {
+  buildPairJudgmentKey,
+  computePairHash,
+  fetchExistingJudgmentKeys,
+  getCanonicalPairIds,
+} from './conflict-pair-utils'
 
 const JUDGMENT_MODEL = 'openai/gpt-4o-mini'
 const CONFIDENCE_THRESHOLD = 0.7
 
-/**
- * Computes a deterministic hash for a note pair.
- * Uses canonical ordering (smaller UUID first) to ensure consistency.
- *
- * @param noteAHash - Content hash of note A
- * @param noteBHash - Content hash of note B
- * @param noteAId - UUID of note A
- * @param noteBId - UUID of note B
- * @returns SHA-256 hex hash of the pair
- */
-export function computePairHash(
-  noteAHash: string,
-  noteBHash: string,
-  noteAId: string,
-  noteBId: string
-): string {
-  // Canonical ordering: smaller UUID first
-  const [firstHash, secondHash] =
-    noteAId < noteBId ? [noteAHash, noteBHash] : [noteBHash, noteAHash]
-  return createHash('sha256').update(`${firstHash}:${secondHash}`).digest('hex')
-}
+export { computePairHash } from './conflict-pair-utils'
 
 /**
  * Inngest function that detects conflicts between notes using LLM judgment.
@@ -182,16 +167,13 @@ export const detectNoteConflicts = inngest.createFunction(
             note.id,
             candidate.id
           )
-          // Canonical ordering for note IDs
-          const [noteAId, noteBId] =
-            note.id < candidate.id
-              ? [note.id, candidate.id]
-              : [candidate.id, note.id]
+          const [noteAId, noteBId] = getCanonicalPairIds(note.id, candidate.id)
 
           return {
             noteAId,
             noteBId,
             pairHash,
+            judgmentKey: buildPairJudgmentKey(noteAId, noteBId, pairHash),
             candidate,
           }
         })
@@ -200,26 +182,25 @@ export const detectNoteConflicts = inngest.createFunction(
         return []
       }
 
-      // Query existing judgments
-      const pairHashes = pairData.map((p) => p.pairHash)
-      const { data: existingJudgments, error } = await supabase
-        .from('conflict_judgments')
-        .select('pair_content_hash')
-        .in('pair_content_hash', pairHashes)
-
-      if (error) {
-        console.error(
-          `[Conflicts] Failed to query existing judgments: ${error.message}`
+      try {
+        const existingJudgmentKeys = await fetchExistingJudgmentKeys(
+          supabase,
+          pairData.map((pair) => ({
+            noteAId: pair.noteAId,
+            noteBId: pair.noteBId,
+            pairHash: pair.pairHash,
+          }))
         )
-        throw new Error(`Failed to query existing judgments: ${error.message}`)
+
+        return pairData.filter((pair) => !existingJudgmentKeys.has(pair.judgmentKey))
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown judgment lookup error'
+        console.error(
+          `[Conflicts] Failed to query existing judgments: ${message}`
+        )
+        throw new Error(message)
       }
-
-      const existingHashes = new Set(
-        existingJudgments?.map((j) => j.pair_content_hash) || []
-      )
-
-      // Filter to only unjudged pairs
-      return pairData.filter((p) => !existingHashes.has(p.pairHash))
     })
 
     if (pairsToJudge.length === 0) {

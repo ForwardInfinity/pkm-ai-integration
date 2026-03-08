@@ -2,6 +2,12 @@ import { inngest } from '../client'
 import { NonRetriableError } from 'inngest'
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
+import {
+  buildPairJudgmentKey,
+  computePairHash,
+  fetchExistingJudgmentKeys,
+  getCanonicalPairIds,
+} from './conflict-pair-utils'
 
 const BATCH_LIMIT = 50
 
@@ -48,75 +54,183 @@ export const reconcileConflicts = inngest.createFunction(
       }
     }
 
-    const noteIds = candidateNotes.map((n) => n.id)
+    const candidateMatches = await step.run('collect-candidate-pairs', async () => {
+      const collected: Array<{
+        sourceNoteId: string
+        sourceContentHash: string
+        candidateId: string
+      }> = []
 
-    const alreadyCheckedNoteIdList = await step.run(
-      'fetch-existing-judgments',
-      async () => {
-        const [aResult, bResult] = await Promise.all([
-          supabase
-            .from('conflict_judgments')
-            .select('note_a_id')
-            .in('note_a_id', noteIds),
-          supabase
-            .from('conflict_judgments')
-            .select('note_b_id')
-            .in('note_b_id', noteIds),
-        ])
+      for (const note of candidateNotes) {
+        const { data, error } = await supabase.rpc('find_potential_conflicts', {
+          target_note_id: note.id,
+          similarity_threshold: 0.65,
+          match_count: 10,
+        })
 
-        if (aResult.error) {
+        if (error) {
           throw new Error(
-            `Failed to fetch judgments (note_a_id): ${aResult.error.message}`
-          )
-        }
-        if (bResult.error) {
-          throw new Error(
-            `Failed to fetch judgments (note_b_id): ${bResult.error.message}`
+            `Failed to fetch conflict candidates for note ${note.id}: ${error.message}`
           )
         }
 
-        const checked = new Set<string>()
-
-        for (const row of aResult.data || []) {
-          if (row.note_a_id) checked.add(row.note_a_id)
+        for (const candidate of data || []) {
+          collected.push({
+            sourceNoteId: note.id,
+            sourceContentHash: note.embedding_content_hash,
+            candidateId: candidate.note_id,
+          })
         }
-        for (const row of bResult.data || []) {
-          if (row.note_b_id) checked.add(row.note_b_id)
-        }
-
-        return Array.from(checked)
       }
-    )
 
-    const alreadyCheckedNoteIds = new Set(alreadyCheckedNoteIdList)
+      return collected
+    })
 
-    const notesToEmit = candidateNotes.filter(
-      (n) => !alreadyCheckedNoteIds.has(n.id)
-    )
-
-    if (notesToEmit.length === 0) {
+    if (candidateMatches.length === 0) {
       return {
         reconciled: 0,
-        message: 'All candidate notes already have conflict judgments',
         candidates: candidateNotes.length,
+        candidatePairs: 0,
+        message: 'No candidate pairs found for conflict reconciliation',
       }
     }
 
-    const events = notesToEmit.map((note) => ({
-      id: `note-conflicts.detection.requested:${note.id}:${note.embedding_content_hash}`,
+    const pairState = await step.run('filter-unjudged-pairs', async () => {
+      const knownHashes = new Map(
+        candidateNotes.map((note) => [note.id, note.embedding_content_hash])
+      )
+
+      const unresolvedCandidateIds = [
+        ...new Set(
+          candidateMatches
+            .map((match) => match.candidateId)
+            .filter((candidateId) => !knownHashes.has(candidateId))
+        ),
+      ]
+
+      if (unresolvedCandidateIds.length > 0) {
+        const { data, error } = await supabase
+          .from('notes')
+          .select('id, embedding_content_hash')
+          .in('id', unresolvedCandidateIds)
+          .eq('embedding_status', 'completed')
+          .not('embedding_content_hash', 'is', null)
+          .is('deleted_at', null)
+
+        if (error) {
+          throw new Error(`Failed to fetch candidate note hashes: ${error.message}`)
+        }
+
+        for (const note of data || []) {
+          if (note.embedding_content_hash) {
+            knownHashes.set(note.id, note.embedding_content_hash)
+          }
+        }
+      }
+
+      const uniquePairs = new Map<
+        string,
+        {
+          sourceNoteId: string
+          sourceContentHash: string
+          noteAId: string
+          noteBId: string
+          pairHash: string
+        }
+      >()
+
+      for (const match of candidateMatches) {
+        const candidateHash = knownHashes.get(match.candidateId)
+        if (!candidateHash) {
+          continue
+        }
+
+        const [noteAId, noteBId] = getCanonicalPairIds(
+          match.sourceNoteId,
+          match.candidateId
+        )
+        const pairHash = computePairHash(
+          match.sourceContentHash,
+          candidateHash,
+          match.sourceNoteId,
+          match.candidateId
+        )
+        const pairKey = buildPairJudgmentKey(noteAId, noteBId, pairHash)
+
+        if (!uniquePairs.has(pairKey)) {
+          uniquePairs.set(pairKey, {
+            sourceNoteId: match.sourceNoteId,
+            sourceContentHash: match.sourceContentHash,
+            noteAId,
+            noteBId,
+            pairHash,
+          })
+        }
+      }
+
+      const existingJudgmentKeys = await fetchExistingJudgmentKeys(
+        supabase,
+        Array.from(uniquePairs.values()).map((pair) => ({
+          noteAId: pair.noteAId,
+          noteBId: pair.noteBId,
+          pairHash: pair.pairHash,
+        }))
+      )
+
+      const notesToEmit = new Map<string, string>()
+      let unjudgedPairs = 0
+
+      for (const [pairKey, pair] of uniquePairs.entries()) {
+        if (existingJudgmentKeys.has(pairKey)) {
+          continue
+        }
+
+        unjudgedPairs++
+        notesToEmit.set(pair.sourceNoteId, pair.sourceContentHash)
+      }
+
+      return {
+        notesToEmit: Array.from(notesToEmit, ([noteId, contentHash]) => ({
+          noteId,
+          contentHash,
+        })),
+        uniquePairs: uniquePairs.size,
+        unjudgedPairs,
+      }
+    })
+
+    if (pairState.notesToEmit.length === 0) {
+      return {
+        reconciled: 0,
+        candidates: candidateNotes.length,
+        candidatePairs: candidateMatches.length,
+        uniquePairs: pairState.uniquePairs,
+        unjudgedPairs: 0,
+        skippedAlreadyJudgedPairs: pairState.uniquePairs,
+        message: 'All candidate pairs already have conflict judgments',
+      }
+    }
+
+    // Deliberately omit event IDs so the same note/hash can be retried after
+    // partial pair-level failures; pair judgments provide idempotency instead.
+    const events = pairState.notesToEmit.map((note) => ({
       name: 'note/conflicts.detection.requested' as const,
       data: {
-        noteId: note.id,
-        contentHash: note.embedding_content_hash,
+        noteId: note.noteId,
+        contentHash: note.contentHash,
       },
     }))
 
     await step.sendEvent('emit-conflict-detection-events', events)
 
     return {
-      reconciled: notesToEmit.length,
+      reconciled: pairState.notesToEmit.length,
       candidates: candidateNotes.length,
-      skippedAlreadyJudged: candidateNotes.length - notesToEmit.length,
+      candidatePairs: candidateMatches.length,
+      uniquePairs: pairState.uniquePairs,
+      unjudgedPairs: pairState.unjudgedPairs,
+      skippedAlreadyJudgedPairs:
+        pairState.uniquePairs - pairState.unjudgedPairs,
     }
   }
 )

@@ -6,17 +6,13 @@ import { trashKeys } from './use-trash-notes'
 import { noteKeys } from '@/features/notes/hooks/use-notes'
 import type { TrashNoteItem } from '../types'
 import type { NoteListItem } from '@/features/notes/types'
+import { restoreNote as restoreNoteAction } from '../actions/restore-notes'
 
 async function restoreNote(id: string): Promise<void> {
-  const supabase = createClient()
+  const result = await restoreNoteAction(id)
 
-  const { error } = await supabase
-    .from('notes')
-    .update({ deleted_at: null })
-    .eq('id', id)
-
-  if (error) {
-    throw new Error(error.message)
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to restore note')
   }
 }
 

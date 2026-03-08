@@ -1,22 +1,17 @@
 'use client'
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createClient } from '@/lib/supabase/client'
 import { trashKeys } from './use-trash-notes'
 import { noteKeys } from '@/features/notes/hooks/use-notes'
 import type { TrashNoteItem } from '../types'
 import type { NoteListItem } from '@/features/notes/types'
+import { restoreNotes } from '../actions/restore-notes'
 
 async function bulkRestoreNotes(ids: string[]): Promise<void> {
-  const supabase = createClient()
+  const result = await restoreNotes(ids)
 
-  const { error } = await supabase
-    .from('notes')
-    .update({ deleted_at: null })
-    .in('id', ids)
-
-  if (error) {
-    throw new Error(error.message)
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to restore notes')
   }
 }
 

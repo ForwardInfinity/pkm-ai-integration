@@ -30,7 +30,11 @@ let mockCandidateDetails: Array<{
   embedding_content_hash: string | null
   deleted_at?: string | null
 }> = []
-let mockExistingJudgments: Array<{ pair_content_hash: string }> = []
+let mockExistingJudgments: Array<{
+  note_a_id: string
+  note_b_id: string
+  pair_content_hash: string
+}> = []
 let mockInsertError: { code: string; message: string } | null = null
 let mockUpsertError: { code: string; message: string } | null = null
 let mockAfterJudgmentInsert: (() => void) | null = null
@@ -86,17 +90,50 @@ const createMockSupabaseClient = () => ({
     if (table === 'conflict_judgments') {
       return {
         select: vi.fn(() => ({
-          in: vi.fn((field: string, values: string[]) => {
+          in: vi.fn((firstField: string, firstValues: string[]) => {
             mockSupabaseCallLog.push({
               method: 'conflict_judgments.select.in',
-              args: [field, values],
+              args: [firstField, firstValues],
             })
-            return Promise.resolve({
-              data: mockExistingJudgments.filter((j) =>
-                values.includes(j.pair_content_hash)
-              ),
-              error: null,
-            })
+
+            return {
+              in: vi.fn((secondField: string, secondValues: string[]) => {
+                mockSupabaseCallLog.push({
+                  method: 'conflict_judgments.select.in',
+                  args: [secondField, secondValues],
+                })
+
+                return {
+                  in: vi.fn((thirdField: string, thirdValues: string[]) => {
+                    mockSupabaseCallLog.push({
+                      method: 'conflict_judgments.select.in',
+                      args: [thirdField, thirdValues],
+                    })
+
+                    const filters = {
+                      [firstField]: firstValues,
+                      [secondField]: secondValues,
+                      [thirdField]: thirdValues,
+                    } as Record<string, string[]>
+
+                    return Promise.resolve({
+                      data: mockExistingJudgments.filter(
+                        (judgment) =>
+                          (!filters.note_a_id ||
+                            filters.note_a_id.includes(judgment.note_a_id)) &&
+                          (!filters.note_b_id ||
+                            filters.note_b_id.includes(judgment.note_b_id)) &&
+                          (!filters.pair_content_hash ||
+                            filters.pair_content_hash.includes(
+                              judgment.pair_content_hash
+                            ))
+                      ),
+                      error: null,
+                    })
+                  }),
+                }
+              }),
+            }
           }),
         })),
         insert: vi.fn((data: unknown) => {
@@ -641,7 +678,13 @@ describe('detectNoteConflicts', () => {
           embedding_content_hash: candidateHash,
         },
       ]
-      mockExistingJudgments = [{ pair_content_hash: pairHash }]
+      mockExistingJudgments = [
+        {
+          note_a_id: 'note-123',
+          note_b_id: 'note-456',
+          pair_content_hash: pairHash,
+        },
+      ]
 
       const { detectNoteConflicts } = await import(
         '@/lib/inngest/functions/detect-conflicts'
@@ -667,6 +710,70 @@ describe('detectNoteConflicts', () => {
       expect(result.judged).toBe(0)
       expect(result.reason).toBe('All pairs already judged')
       expect(mockJudgeNotePair).not.toHaveBeenCalled()
+    })
+
+    it('should not skip a different pair that happens to share the same pair hash', async () => {
+      const { computePairHash } = await import(
+        '@/lib/inngest/functions/detect-conflicts'
+      )
+
+      const targetHash = 'shared-target-hash'
+      const candidateHash = 'shared-candidate-hash'
+      const sharedPairHash = computePairHash(
+        targetHash,
+        candidateHash,
+        'note-123',
+        'note-456'
+      )
+
+      mockTargetNote = {
+        id: 'note-123',
+        user_id: 'user-456',
+        title: 'Target Note',
+        problem: null,
+        content: 'Target content',
+        embedding_content_hash: targetHash,
+        embedding_status: 'completed',
+      }
+      mockCandidates = [{ note_id: 'note-456', similarity: 0.9 }]
+      mockCandidateDetails = [
+        {
+          id: 'note-456',
+          title: 'Candidate Note',
+          problem: null,
+          content: 'Candidate content',
+          embedding_content_hash: candidateHash,
+        },
+      ]
+      mockExistingJudgments = [
+        {
+          note_a_id: 'note-888',
+          note_b_id: 'note-999',
+          pair_content_hash: sharedPairHash,
+        },
+      ]
+      mockJudgeNotePair.mockResolvedValueOnce({
+        reasoning: 'Shared hash but different pair',
+        result: 'no_conflict',
+        confidence: 0.9,
+      })
+
+      const { detectNoteConflicts } = await import(
+        '@/lib/inngest/functions/detect-conflicts'
+      )
+
+      const handler = detectNoteConflicts.handler as (ctx: {
+        event: { data: { noteId: string; contentHash: string } }
+        step: { run: typeof mockStepRun }
+      }) => Promise<{ judged: number }>
+
+      const result = await handler({
+        event: { data: { noteId: 'note-123', contentHash: targetHash } },
+        step: { run: mockStepRun },
+      })
+
+      expect(mockJudgeNotePair).toHaveBeenCalledTimes(1)
+      expect(result.judged).toBe(1)
     })
   })
 

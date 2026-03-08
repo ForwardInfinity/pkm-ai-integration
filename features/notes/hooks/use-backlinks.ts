@@ -2,6 +2,10 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
+import {
+  NOTE_ANALYSIS_REFRESH_INTERVAL_MS,
+  useIsNoteAnalysisRefreshing,
+} from '@/lib/note-analysis-refresh'
 import type { BacklinkNote } from '../types'
 import { getPersistedNoteId } from '../utils/note-id'
 
@@ -30,6 +34,7 @@ async function fetchBacklinks(noteId: string): Promise<BacklinkNote[]> {
  */
 export function useBacklinks(noteId: string | null) {
   const persistedNoteId = getPersistedNoteId(noteId)
+  const isRefreshing = useIsNoteAnalysisRefreshing(persistedNoteId)
 
   return useQuery({
     queryKey: persistedNoteId
@@ -39,5 +44,6 @@ export function useBacklinks(noteId: string | null) {
       persistedNoteId ? fetchBacklinks(persistedNoteId) : Promise.resolve([]),
     enabled: !!persistedNoteId,
     staleTime: 30 * 1000, // Consider data fresh for 30 seconds
+    refetchInterval: isRefreshing ? NOTE_ANALYSIS_REFRESH_INTERVAL_MS : false,
   })
 }

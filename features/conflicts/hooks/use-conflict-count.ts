@@ -2,6 +2,10 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
+import {
+  NOTE_ANALYSIS_REFRESH_INTERVAL_MS,
+  useIsAnyNoteAnalysisRefreshing,
+} from '@/lib/note-analysis-refresh';
 import { conflictKeys } from './use-conflicts';
 
 async function fetchConflictCount(): Promise<number> {
@@ -21,9 +25,12 @@ async function fetchConflictCount(): Promise<number> {
  * Used for sidebar badge display
  */
 export function useConflictCount() {
+  const isRefreshing = useIsAnyNoteAnalysisRefreshing();
+
   return useQuery({
     queryKey: conflictKeys.count(),
     queryFn: fetchConflictCount,
     staleTime: 30 * 1000,
+    refetchInterval: isRefreshing ? NOTE_ANALYSIS_REFRESH_INTERVAL_MS : false,
   });
 }

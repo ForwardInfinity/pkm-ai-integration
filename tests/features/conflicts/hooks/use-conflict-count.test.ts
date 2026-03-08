@@ -1,8 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { useConflictCount } from '@/features/conflicts/hooks/use-conflict-count';
+import {
+  beginNoteAnalysisRefresh,
+  NOTE_ANALYSIS_REFRESH_INTERVAL_MS,
+  resetNoteAnalysisRefreshState,
+} from '@/lib/note-analysis-refresh';
 
 const mockRpc = vi.fn();
 
@@ -28,6 +33,12 @@ function createWrapper() {
 describe('useConflictCount', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetNoteAnalysisRefreshState();
+  });
+
+  afterEach(() => {
+    resetNoteAnalysisRefreshState();
+    vi.useRealTimers();
   });
 
   it('should fetch conflict count successfully', async () => {
@@ -100,5 +111,28 @@ describe('useConflictCount', () => {
     });
 
     expect(result.current.data).toBe(999);
+  });
+
+  it('polls while any note is inside the refresh window', async () => {
+    vi.useFakeTimers();
+    mockRpc.mockResolvedValue({ data: 5, error: null });
+    beginNoteAnalysisRefresh('note-123');
+
+    renderHook(() => useConflictCount(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(NOTE_ANALYSIS_REFRESH_INTERVAL_MS + 50);
+      await Promise.resolve();
+    });
+
+    expect(mockRpc).toHaveBeenCalledTimes(2);
   });
 });

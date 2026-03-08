@@ -31,6 +31,7 @@ const mockSupabaseChain = {
 
 const mockTriggerEmbeddingGeneration = vi.fn()
 const mockSyncNoteLinks = vi.fn()
+const mockBeginNoteAnalysisRefresh = vi.fn()
 const mockQueryClient = {
   setQueryData: vi.fn(),
   invalidateQueries: vi.fn(),
@@ -72,6 +73,11 @@ vi.mock('@/features/notes/actions/trigger-embedding', () => ({
 
 vi.mock('@/features/notes/actions/sync-note-links', () => ({
   syncNoteLinks: (...args: unknown[]) => mockSyncNoteLinks(...args),
+}))
+
+vi.mock('@/lib/note-analysis-refresh', () => ({
+  beginNoteAnalysisRefresh: (...args: unknown[]) =>
+    mockBeginNoteAnalysisRefresh(...args),
 }))
 
 // Mock note-cache
@@ -156,6 +162,7 @@ describe('sync-queue', () => {
     })
     mockTriggerEmbeddingGeneration.mockResolvedValue({ success: true })
     mockSyncNoteLinks.mockResolvedValue({ success: true })
+    mockBeginNoteAnalysisRefresh.mockReset()
     mockQueryClient.setQueryData.mockReset()
     mockQueryClient.invalidateQueries.mockReset()
     window.sessionStorage.clear()
@@ -321,6 +328,76 @@ describe('sync-queue', () => {
       })
       expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
         queryKey: tagKeys.tags(),
+      })
+    })
+
+    it('starts a refresh window and invalidates analysis queries after successful embedding enqueue', async () => {
+      const queueItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'server-uuid-123',
+        operation: 'update',
+        data: { content: 'Updated content' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+
+      setQueueItems([queueItem])
+      mockSupabaseChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'server-uuid-123',
+          title: 'Updated Title',
+          problem: null,
+          content: 'Updated content',
+          word_count: 2,
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        error: null,
+      })
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      const { relatedNotesKeys } = await import('@/features/notes/hooks/use-related-notes')
+      const { conflictKeys } = await import('@/features/conflicts/hooks/use-conflicts')
+
+      expect(mockBeginNoteAnalysisRefresh).toHaveBeenCalledWith('server-uuid-123')
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: relatedNotesKeys.all,
+      })
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: conflictKeys.all,
+      })
+    })
+
+    it('invalidates backlink queries after note link sync succeeds', async () => {
+      const queueItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'server-uuid-123',
+        operation: 'update',
+        data: { content: 'Updated content' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+
+      setQueueItems([queueItem])
+      mockSupabaseChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'server-uuid-123',
+          title: 'Updated Title',
+          problem: null,
+          content: 'Updated content',
+          word_count: 2,
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        error: null,
+      })
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      const { backlinkKeys } = await import('@/features/notes/hooks/use-backlinks')
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: backlinkKeys.all,
       })
     })
 

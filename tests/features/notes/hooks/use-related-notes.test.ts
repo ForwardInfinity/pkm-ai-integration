@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { renderHook, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement, type ReactNode } from 'react'
 import {
@@ -8,6 +8,11 @@ import {
   DEFAULT_MATCH_COUNT,
   DEFAULT_SIMILARITY_THRESHOLD,
 } from '@/features/notes/hooks/use-related-notes'
+import {
+  beginNoteAnalysisRefresh,
+  NOTE_ANALYSIS_REFRESH_INTERVAL_MS,
+  resetNoteAnalysisRefreshState,
+} from '@/lib/note-analysis-refresh'
 
 const mockRpc = vi.fn()
 
@@ -33,6 +38,12 @@ function createWrapper() {
 describe('useRelatedNotes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetNoteAnalysisRefreshState()
+  })
+
+  afterEach(() => {
+    resetNoteAnalysisRefreshState()
+    vi.useRealTimers()
   })
 
   describe('relatedNotesKeys', () => {
@@ -187,6 +198,29 @@ describe('useRelatedNotes', () => {
       })
 
       expect(result.current.data).toEqual([])
+    })
+
+    it('polls while the note is inside the refresh window', async () => {
+      vi.useFakeTimers()
+      mockRpc.mockResolvedValue({ data: [], error: null })
+      beginNoteAnalysisRefresh('note-123')
+
+      renderHook(() => useRelatedNotes('note-123'), {
+        wrapper: createWrapper(),
+      })
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(mockRpc).toHaveBeenCalledTimes(1)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(NOTE_ANALYSIS_REFRESH_INTERVAL_MS + 50)
+        await Promise.resolve()
+      })
+
+      expect(mockRpc).toHaveBeenCalledTimes(2)
     })
   })
 })

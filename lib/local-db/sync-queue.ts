@@ -13,12 +13,16 @@ import {
 } from './note-cache'
 import { getBrowserQueryClient } from '@/lib/query-client'
 import { noteKeys } from '@/features/notes/hooks/use-notes'
-import { backlinkKeys } from '@/features/notes/hooks/use-backlinks'
 import { invalidateTagQueries } from '@/features/notes/hooks/use-tags'
 import type { NoteListItem, Note } from '@/features/notes/types'
 import { triggerEmbeddingGeneration } from '@/features/notes/actions/trigger-embedding'
 import { syncNoteLinks } from '@/features/notes/actions/sync-note-links'
 import { extractTagsFromMarkdown } from '@/lib/tags'
+import { beginNoteAnalysisRefresh } from '@/lib/note-analysis-refresh'
+import {
+  invalidateAnalysisQueries,
+  invalidateBacklinkQueries,
+} from '@/lib/note-derived-queries'
 
 const SYNC_DEBOUNCE_MS = 2000
 const MAX_RETRIES = 3
@@ -26,6 +30,18 @@ const BROADCAST_CHANNEL_NAME = 'refinery-notes-sync'
 const TEMP_ID_MAPPING_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
 type NoteChangeListener = (noteId: string, data: Partial<LocalNote>) => void
+
+function shouldRefreshDerivedData(item: SyncQueueItem): boolean {
+  if (item.operation === 'create') {
+    return true
+  }
+
+  return (
+    item.data.title !== undefined ||
+    item.data.problem !== undefined ||
+    item.data.content !== undefined
+  )
+}
 
 class SyncQueue {
   private static readonly QUEUE_LOCK_NAME = 'refinery-sync-queue-lock'
@@ -473,6 +489,13 @@ class SyncQueue {
         .then((res) => {
           if (!res.success) {
             console.error('[Embedding] Failed to enqueue for new note:', res.error)
+          } else if (!res.skipped) {
+            beginNoteAnalysisRefresh(created.id)
+
+            const queryClient = getBrowserQueryClient()
+            if (queryClient) {
+              void invalidateAnalysisQueries(queryClient)
+            }
           }
         })
         .catch(console.error)
@@ -486,7 +509,7 @@ class SyncQueue {
             // Invalidate backlinks cache for any notes that were linked
             const queryClient = getBrowserQueryClient()
             if (queryClient) {
-              queryClient.invalidateQueries({ queryKey: backlinkKeys.all })
+              void invalidateBacklinkQueries(queryClient)
             }
           }
         })
@@ -571,6 +594,8 @@ class SyncQueue {
         queryClient.setQueryData<Note>(noteKeys.detail(serverNoteId), updated)
       }
 
+      const shouldRefreshAnalysis = shouldRefreshDerivedData(item)
+
       // Trigger embedding regeneration for updated note (best-effort, does not block sync)
       triggerEmbeddingGeneration({
         id: updated.id,
@@ -581,6 +606,13 @@ class SyncQueue {
         .then((res) => {
           if (!res.success) {
             console.error('[Embedding] Failed to enqueue for updated note:', res.error)
+          } else if (shouldRefreshAnalysis && !res.skipped) {
+            beginNoteAnalysisRefresh(updated.id)
+
+            const queryClient = getBrowserQueryClient()
+            if (queryClient) {
+              void invalidateAnalysisQueries(queryClient)
+            }
           }
         })
         .catch(console.error)
@@ -595,7 +627,7 @@ class SyncQueue {
               // Invalidate backlinks cache for any notes that were linked/unlinked
               const queryClient = getBrowserQueryClient()
               if (queryClient) {
-                queryClient.invalidateQueries({ queryKey: backlinkKeys.all })
+                void invalidateBacklinkQueries(queryClient)
               }
             }
           })

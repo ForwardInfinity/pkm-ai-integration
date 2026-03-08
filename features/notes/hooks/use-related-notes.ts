@@ -2,6 +2,10 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
+import {
+  NOTE_ANALYSIS_REFRESH_INTERVAL_MS,
+  useIsNoteAnalysisRefreshing,
+} from '@/lib/note-analysis-refresh'
 import type { RelatedNote } from '../types'
 import { getPersistedNoteId } from '../utils/note-id'
 
@@ -47,6 +51,7 @@ export function useRelatedNotes(
   matchThreshold = DEFAULT_SIMILARITY_THRESHOLD
 ) {
   const persistedNoteId = getPersistedNoteId(noteId)
+  const isRefreshing = useIsNoteAnalysisRefreshing(persistedNoteId)
 
   return useQuery({
     queryKey: persistedNoteId
@@ -58,5 +63,6 @@ export function useRelatedNotes(
         : Promise.resolve([]),
     enabled: !!persistedNoteId,
     staleTime: 30 * 1000,
+    refetchInterval: isRefreshing ? NOTE_ANALYSIS_REFRESH_INTERVAL_MS : false,
   })
 }

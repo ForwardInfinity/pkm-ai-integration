@@ -2,6 +2,10 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { getConflicts } from '../actions/get-conflicts';
+import {
+  NOTE_ANALYSIS_REFRESH_INTERVAL_MS,
+  useIsAnyNoteAnalysisRefreshing,
+} from '@/lib/note-analysis-refresh';
 import type { ConflictWithNotes, ConflictStatus } from '../types';
 
 /** Query key factory for conflicts */
@@ -31,9 +35,12 @@ async function fetchConflicts(
  * @param status - Filter by conflict status (default: 'active')
  */
 export function useConflicts(status: ConflictStatus = 'active') {
+  const isRefreshing = useIsAnyNoteAnalysisRefreshing();
+
   return useQuery({
     queryKey: conflictKeys.list({ status }),
     queryFn: () => fetchConflicts(status),
     staleTime: 30 * 1000,
+    refetchInterval: isRefreshing ? NOTE_ANALYSIS_REFRESH_INTERVAL_MS : false,
   });
 }

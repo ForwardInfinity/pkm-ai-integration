@@ -126,7 +126,6 @@ LLM-based detection via Inngest triggered by `note/conflicts.detection.requested
 
 ## Additional Context
 
-- Product vision: `PRD.md`
 - Data model: `DATA-MODEL.md`
 - Database migrations: `supabase/migrations/`
 - Full schema: `types/database.types.ts`

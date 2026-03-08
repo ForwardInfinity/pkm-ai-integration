@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { useNoteEditorStore, useTabsStore } from '@/stores'
 import type { LocalNote } from '@/lib/local-db'
+import type { MarkdownEditorProps } from '@/components/editor/types'
 
 const mockUseNote = vi.fn()
 const mockUseNotes = vi.fn()
@@ -11,11 +12,13 @@ const mockSave = vi.fn()
 const mockGetServerId = vi.fn()
 const mockGetNoteLocally = vi.fn()
 const mockRequeueRecoveredNote = vi.fn()
+const mockMarkdownEditor = vi.fn()
 
 vi.mock('@/components/editor', () => ({
-  MarkdownEditor: ({ content }: { content: string }) => (
-    <div data-testid="markdown-editor">{content}</div>
-  ),
+  MarkdownEditor: (props: MarkdownEditorProps) => {
+    mockMarkdownEditor(props)
+    return <div data-testid="markdown-editor">{props.content}</div>
+  },
 }))
 
 vi.mock('@/features/notes/components/note-actions-dropdown', () => ({
@@ -106,6 +109,7 @@ describe('NoteEditor', () => {
     mockGetServerId.mockReturnValue(undefined)
     mockGetNoteLocally.mockResolvedValue(undefined)
     mockRequeueRecoveredNote.mockResolvedValue(undefined)
+    mockMarkdownEditor.mockReset()
   })
 
   it('clears the previous persisted draft when switching to /notes/new', async () => {
@@ -262,5 +266,87 @@ describe('NoteEditor', () => {
       title: 'Recovered temp draft',
       tags: ['tag'],
     })
+  })
+
+  it('uses normalized wikilink resolution for editor clicks and skips the current note', async () => {
+    mockUseNote.mockReturnValue({
+      data: {
+        id: 'note-current',
+        user_id: 'user-1',
+        title: 'Foo',
+        problem: null,
+        content: 'See [[foo]]',
+        tags: [],
+        is_pinned: false,
+        word_count: 2,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-02T00:00:00Z',
+        deleted_at: null,
+        embedding: null,
+        embedding_content_hash: null,
+        embedding_error: null,
+        embedding_model: null,
+        embedding_requested_at: null,
+        embedding_status: 'pending',
+        embedding_updated_at: null,
+        fts: null,
+      },
+      isLoading: false,
+      error: null,
+    })
+    mockUseNotes.mockReturnValue({
+      data: [
+        {
+          id: 'note-current',
+          title: 'Foo',
+          problem: null,
+          tags: [],
+          is_pinned: false,
+          updated_at: '2024-01-02T00:00:00Z',
+          word_count: 2,
+        },
+        {
+          id: 'note-target',
+          title: 'foo',
+          problem: 'Target problem',
+          tags: [],
+          is_pinned: false,
+          updated_at: '2024-01-01T00:00:00Z',
+          word_count: 1,
+        },
+      ],
+    })
+
+    useTabsStore.setState({
+      tabs: [{ id: 'tab-1', noteId: 'note-current', title: 'Foo' }],
+      activeTabId: 'tab-1',
+      showListView: false,
+    })
+
+    render(<NoteEditor noteId="note-current" tabId="tab-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Foo')).toBeInTheDocument()
+    })
+
+    const markdownEditorProps = mockMarkdownEditor.mock.lastCall?.[0] as
+      | MarkdownEditorProps
+      | undefined
+
+    expect(markdownEditorProps?.wikiLinkConfig).toBeDefined()
+
+    act(() => {
+      markdownEditorProps?.wikiLinkConfig?.onWikiLinkClick?.('  FOO  ')
+    })
+
+    expect(useTabsStore.getState().tabs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          noteId: 'note-target',
+          title: 'foo',
+        }),
+      ])
+    )
+    expect(useTabsStore.getState().activeTabId).not.toBe('tab-1')
   })
 })

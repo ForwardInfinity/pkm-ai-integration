@@ -27,6 +27,8 @@ import type { WikiLinkConfig, HashTagConfig } from '@/components/editor/types'
 import { useRouter } from 'next/navigation'
 import { extractTagsFromMarkdown } from '@/lib/tags'
 import { isUnsavedNoteId } from '../utils/note-id'
+import { buildNormalizedNoteTitleLookup, normalizeNoteTitle } from '@/lib/note-title-lookup'
+import type { NoteListItem } from '../types'
 
 interface NoteEditorProps {
   noteId: string
@@ -87,9 +89,16 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
 
   // Use ref to always get fresh notes data in callbacks
   const allNotesRef = useRef(allNotes)
+  const noteLookupRef = useRef<Map<string, NoteListItem>>(new Map())
   useEffect(() => {
     allNotesRef.current = allNotes
   }, [allNotes])
+
+  useEffect(() => {
+    noteLookupRef.current = buildNormalizedNoteTitleLookup(allNotes ?? [], {
+      excludeNoteId: isUnsavedNote ? undefined : noteId,
+    })
+  }, [allNotes, isUnsavedNote, noteId])
 
   // Use ref for tags data
   const allTagsRef = useRef(allTags)
@@ -108,11 +117,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
           problem: n.problem,
         })),
       onWikiLinkClick: (noteTitle: string) => {
-        // Find the note by title using fresh data from ref
-        const notes = allNotesRef.current ?? []
-        const targetNote = notes.find(
-          (n) => n.title.toLowerCase() === noteTitle.toLowerCase()
-        )
+        const targetNote = noteLookupRef.current.get(normalizeNoteTitle(noteTitle))
         if (targetNote) {
           openTab(targetNote.id, targetNote.title, true)
         }

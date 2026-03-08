@@ -2,6 +2,10 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { extractUniqueLinkTitles } from '@/lib/link-parser'
+import {
+  buildNormalizedNoteTitleLookup,
+  normalizeNoteTitle,
+} from '@/lib/note-title-lookup'
 
 interface SyncNoteLinksResult {
   success: boolean
@@ -10,6 +14,18 @@ interface SyncNoteLinksResult {
   skipped?: boolean
   reason?: string
   error?: string
+}
+
+async function fetchActiveNoteTitleRecords(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+) {
+  return supabase
+    .from('notes')
+    .select('id, title, updated_at')
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .order('updated_at', { ascending: false })
 }
 
 /**
@@ -69,28 +85,26 @@ export async function syncNoteLinks(
       return { success: true, linksCreated: 0, linksDeleted: 0 }
     }
 
-    // Find note IDs for the linked titles
-    const { data: targetNotes, error: notesError } = await supabase
-      .from('notes')
-      .select('id, title')
-      .eq('user_id', user.id)
-      .is('deleted_at', null)
-      .in('title', linkTitles)
+    const { data: targetNotes, error: notesError } = await fetchActiveNoteTitleRecords(
+      supabase,
+      user.id
+    )
 
     if (notesError) {
       return { success: false, linksCreated: 0, linksDeleted: 0, error: notesError.message }
     }
 
-    // Create a map of title -> id for found notes
-    const titleToId = new Map<string, string>()
-    for (const note of targetNotes || []) {
-      titleToId.set(note.title.toLowerCase(), note.id)
-    }
+    const titleToId = buildNormalizedNoteTitleLookup(targetNotes ?? [], {
+      excludeNoteId: sourceNoteId,
+    })
 
-    // Get target note IDs (only for notes that exist)
-    const targetNoteIds = linkTitles
-      .map((title) => titleToId.get(title.toLowerCase()))
-      .filter((id): id is string => id !== undefined && id !== sourceNoteId) // Exclude self-links
+    const targetNoteIds = Array.from(
+      new Set(
+        linkTitles
+          .map((title) => titleToId.get(normalizeNoteTitle(title))?.id)
+          .filter((id): id is string => id !== undefined)
+      )
+    )
 
     // Get existing links from this source note
     const { data: existingLinks, error: existingError } = await supabase
@@ -178,20 +192,20 @@ export async function resolveNoteTitles(
     return new Map()
   }
 
-  const { data: notes, error } = await supabase
-    .from('notes')
-    .select('id, title')
-    .eq('user_id', user.id)
-    .is('deleted_at', null)
-    .in('title', titles)
+  const { data: notes, error } = await fetchActiveNoteTitleRecords(supabase, user.id)
 
   if (error || !notes) {
     return new Map()
   }
 
+  const lookup = buildNormalizedNoteTitleLookup(notes)
   const titleToId = new Map<string, string>()
-  for (const note of notes) {
-    titleToId.set(note.title.toLowerCase(), note.id)
+
+  for (const title of titles) {
+    const match = lookup.get(normalizeNoteTitle(title))
+    if (match) {
+      titleToId.set(normalizeNoteTitle(title), match.id)
+    }
   }
 
   return titleToId

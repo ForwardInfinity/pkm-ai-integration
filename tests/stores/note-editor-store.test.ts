@@ -20,87 +20,157 @@ describe('note-editor-store', () => {
   }
 
   beforeEach(() => {
-    // Reset store to initial state
     useNoteEditorStore.getState().reset()
   })
 
-  describe('setCurrentNote', () => {
-    it('should set the current note', () => {
+  describe('hydrateFromServer', () => {
+    it('hydrates the current draft from a server note', () => {
       const store = useNoteEditorStore.getState()
-      
-      store.setCurrentNote(mockNote)
 
-      expect(useNoteEditorStore.getState().currentNote).toEqual(mockNote)
-    })
+      store.hydrateFromServer(mockNote, 'tab-1')
 
-    it('should also set currentNoteId when setting note', () => {
-      const store = useNoteEditorStore.getState()
-      
-      store.setCurrentNote(mockNote)
-
-      expect(useNoteEditorStore.getState().currentNoteId).toBe(mockNote.id)
-    })
-
-    it('should clear currentNoteId when setting note to null', () => {
-      const store = useNoteEditorStore.getState()
-      store.setCurrentNote(mockNote)
-      
-      store.setCurrentNote(null)
-
-      expect(useNoteEditorStore.getState().currentNote).toBeNull()
-      expect(useNoteEditorStore.getState().currentNoteId).toBeNull()
+      expect(useNoteEditorStore.getState()).toMatchObject({
+        ownerTabId: 'tab-1',
+        currentDraft: {
+          id: mockNote.id,
+          persistedId: mockNote.id,
+          isUnsaved: false,
+          title: mockNote.title,
+          problem: mockNote.problem,
+          content: mockNote.content,
+          tags: mockNote.tags,
+          wordCount: mockNote.word_count,
+          isPinned: mockNote.is_pinned,
+          source: 'server',
+        },
+      })
     })
   })
 
-  describe('setCurrentNoteId', () => {
-    it('should set the current note ID', () => {
+  describe('setDraftPatch', () => {
+    it('patches the active draft fields', () => {
       const store = useNoteEditorStore.getState()
-      
-      store.setCurrentNoteId('note-123')
 
-      expect(useNoteEditorStore.getState().currentNoteId).toBe('note-123')
+      store.setCurrentDraftId({
+        id: 'temp-note-id',
+        persistedId: null,
+        isUnsaved: true,
+        source: 'local-draft',
+        ownerTabId: 'tab-1',
+      })
+
+      store.setDraftPatch(
+        {
+          title: 'Updated Title',
+          problem: 'Updated problem',
+          content: 'Updated content',
+          tags: ['updated', 'draft'],
+          wordCount: 42,
+        },
+        'tab-1'
+      )
+
+      expect(useNoteEditorStore.getState().currentDraft).toMatchObject({
+        id: 'temp-note-id',
+        persistedId: null,
+        isUnsaved: true,
+        source: 'local-draft',
+        title: 'Updated Title',
+        problem: 'Updated problem',
+        content: 'Updated content',
+        tags: ['updated', 'draft'],
+        wordCount: 42,
+      })
     })
 
-    it('should clear the ID when set to null', () => {
+    it('ignores patches from a non-owner tab', () => {
       const store = useNoteEditorStore.getState()
-      store.setCurrentNoteId('note-123')
-      
-      store.setCurrentNoteId(null)
 
-      expect(useNoteEditorStore.getState().currentNoteId).toBeNull()
+      store.setCurrentDraftId({
+        id: 'temp-note-id',
+        persistedId: null,
+        isUnsaved: true,
+        source: 'local-draft',
+        ownerTabId: 'tab-1',
+      })
+      store.setDraftPatch({ title: 'Owner title' }, 'tab-1')
+
+      store.setDraftPatch({ title: 'Other tab title' }, 'tab-2')
+
+      expect(useNoteEditorStore.getState().currentDraft?.title).toBe('Owner title')
+    })
+  })
+
+  describe('setCurrentDraftId', () => {
+    it('updates draft identity while preserving existing content fields', () => {
+      const store = useNoteEditorStore.getState()
+
+      store.setCurrentDraftId({
+        id: 'temp-note-id',
+        persistedId: null,
+        isUnsaved: true,
+        source: 'local-draft',
+        ownerTabId: 'tab-1',
+      })
+      store.setDraftPatch(
+        {
+          title: 'Draft title',
+          problem: 'Draft problem',
+          content: 'Draft content',
+          tags: ['draft'],
+          wordCount: 3,
+        },
+        'tab-1'
+      )
+
+      store.setCurrentDraftId({
+        id: 'server-note-id',
+        persistedId: 'server-note-id',
+        isUnsaved: false,
+        source: 'server',
+        ownerTabId: 'tab-1',
+      })
+
+      expect(useNoteEditorStore.getState()).toMatchObject({
+        ownerTabId: 'tab-1',
+        currentDraft: {
+          id: 'server-note-id',
+          persistedId: 'server-note-id',
+          isUnsaved: false,
+          source: 'server',
+          title: 'Draft title',
+          problem: 'Draft problem',
+          content: 'Draft content',
+          tags: ['draft'],
+          wordCount: 3,
+        },
+      })
     })
   })
 
   describe('reset', () => {
-    it('should reset all state to initial values', () => {
+    it('only resets when called by the owning tab', () => {
       const store = useNoteEditorStore.getState()
-      store.setCurrentNote(mockNote)
-      store.setCurrentNoteId('custom-id')
 
+      store.hydrateFromServer(mockNote, 'tab-1')
+
+      store.reset('tab-2')
+      expect(useNoteEditorStore.getState().currentDraft).not.toBeNull()
+      expect(useNoteEditorStore.getState().ownerTabId).toBe('tab-1')
+
+      store.reset('tab-1')
+      expect(useNoteEditorStore.getState().currentDraft).toBeNull()
+      expect(useNoteEditorStore.getState().ownerTabId).toBeNull()
+    })
+
+    it('force resets when no owner is provided', () => {
+      const store = useNoteEditorStore.getState()
+
+      store.hydrateFromServer(mockNote, 'tab-1')
       store.reset()
 
-      const state = useNoteEditorStore.getState()
-      expect(state.currentNote).toBeNull()
-      expect(state.currentNoteId).toBeNull()
-    })
-  })
-
-  describe('selector hooks', () => {
-    it('should return current note via useCurrentNote', () => {
-      const store = useNoteEditorStore.getState()
-      store.setCurrentNote(mockNote)
-
-      // Direct state access (simulating hook behavior)
-      const currentNote = useNoteEditorStore.getState().currentNote
-      expect(currentNote).toEqual(mockNote)
-    })
-
-    it('should return current note ID via useCurrentNoteId', () => {
-      const store = useNoteEditorStore.getState()
-      store.setCurrentNoteId('test-id')
-
-      const currentNoteId = useNoteEditorStore.getState().currentNoteId
-      expect(currentNoteId).toBe('test-id')
+      expect(useNoteEditorStore.getState().currentDraft).toBeNull()
+      expect(useNoteEditorStore.getState().ownerTabId).toBeNull()
     })
   })
 })

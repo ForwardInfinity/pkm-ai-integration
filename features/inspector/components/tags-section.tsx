@@ -7,10 +7,9 @@ import { InspectorSection } from './inspector-section'
 
 interface TagsSectionProps {
   tags: string[]
-  noteId: string | null
 }
 
-export function TagsSection({ tags, noteId }: TagsSectionProps) {
+export function TagsSection({ tags }: TagsSectionProps) {
   const router = useRouter()
   const hasTags = tags.length > 0
 
@@ -31,11 +30,7 @@ export function TagsSection({ tags, noteId }: TagsSectionProps) {
       }
       defaultOpen={true}
     >
-      {!noteId || noteId === 'new' ? (
-        <p className="text-sm text-muted-foreground">
-          Save your note to add tags
-        </p>
-      ) : hasTags ? (
+      {hasTags ? (
         <div className="flex flex-wrap gap-1.5">
           {tags.map((tag) => (
             <Badge

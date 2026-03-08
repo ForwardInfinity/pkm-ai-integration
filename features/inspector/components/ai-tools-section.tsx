@@ -3,7 +3,7 @@
 import { Sparkles, MessageSquareWarning, Loader2, AlertCircle, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { useCurrentNote } from '@/stores'
+import { useCurrentDraft } from '@/stores'
 import { useCritiqueNote } from '@/features/ai/hooks/use-critique-note'
 import { InspectorSection } from './inspector-section'
 import { cn } from '@/lib/utils'
@@ -53,17 +53,17 @@ function CritiqueCategory({ title, items, defaultOpen = true }: CritiqueCategory
 }
 
 export function AIToolsSection({ noteId, disabled = false }: AIToolsSectionProps) {
-  const currentNote = useCurrentNote()
+  const currentDraft = useCurrentDraft()
   const { isLoading, error, result, critique, dismiss } = useCritiqueNote()
 
   const isDisabled = disabled || !noteId || noteId === 'new'
 
   const handleCritiqueNote = () => {
-    if (!currentNote) return
+    if (!currentDraft) return
     critique(
-      currentNote.title,
-      currentNote.problem ?? '',
-      currentNote.content
+      currentDraft.title,
+      currentDraft.problem,
+      currentDraft.content
     )
   }
 

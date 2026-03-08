@@ -5,7 +5,7 @@ import { Separator } from "@/components/ui/separator"
 import { PanelRightClose } from "lucide-react"
 import { TooltipIconButton } from "@/components/shared/tooltip-icon-button"
 import { LAYOUT_CONSTANTS } from "@/types/layout.types"
-import { useCurrentNoteId } from "@/stores"
+import { useCurrentDraftId } from "@/stores"
 import { NoteInspector } from "@/features/inspector/components"
 
 interface InspectorPanelProps {
@@ -18,8 +18,8 @@ export function InspectorPanel({
   onToggle,
 }: InspectorPanelProps) {
   // Check if we're editing a note
-  const currentNoteId = useCurrentNoteId()
-  const isEditingNote = currentNoteId !== null
+  const currentDraftId = useCurrentDraftId()
+  const isEditingNote = currentDraftId !== null
 
   if (isCollapsed) {
     return null

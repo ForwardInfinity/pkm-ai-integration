@@ -55,6 +55,7 @@ export function useAutoSave({ noteId, onExternalChange }: UseAutoSaveOptions) {
         problem: data.problem !== undefined ? data.problem : (existing?.problem ?? null),
         content: data.content ?? existing?.content ?? '',
         wordCount: data.wordCount ?? existing?.wordCount ?? 0,
+        tags: data.tags ?? existing?.tags,
         updatedAt: Date.now(),
         syncStatus: 'pending',
         tempId: noteId.startsWith('temp_') ? noteId : undefined,

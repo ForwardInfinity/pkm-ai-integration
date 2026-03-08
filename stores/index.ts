@@ -8,10 +8,14 @@ export {
 
 export {
   useNoteEditorStore,
+  useCurrentDraft,
+  useCurrentDraftId,
+  useCurrentPersistedNoteId,
   useCurrentNoteId,
   useCurrentNote,
   useNoteEditorActions,
 } from "./note-editor-store"
+export type { CurrentDraftNote } from "./note-editor-store"
 
 export {
   useTabsStore,

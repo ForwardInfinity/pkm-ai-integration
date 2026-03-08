@@ -363,10 +363,11 @@ export type Database = {
         Returns: {
           id: string
           is_pinned: boolean
-          problem: string
+          problem: string | null
           tags: string[]
           title: string
           updated_at: string
+          word_count: number
         }[]
       }
       get_related_notes: {

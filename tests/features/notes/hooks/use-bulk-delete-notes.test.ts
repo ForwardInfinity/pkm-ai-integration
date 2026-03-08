@@ -4,6 +4,7 @@ import { createElement, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useBulkDeleteNotes } from '@/features/notes/hooks/use-bulk-delete-notes'
 import { noteKeys } from '@/features/notes/hooks/use-notes'
+import { tagKeys } from '@/features/notes/hooks/use-tags'
 import { trashKeys } from '@/features/trash/hooks'
 
 const mockRemoveNotes = vi.fn()
@@ -47,6 +48,7 @@ describe('useBulkDeleteNotes', () => {
 
   it('cleans local sync state for all deleted notes', async () => {
     const queryClient = createQueryClient()
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
     queryClient.setQueryData(noteKeys.lists(), [
       {
         id: 'note-123',
@@ -82,5 +84,9 @@ describe('useBulkDeleteNotes', () => {
     expect(mockRemoveNotes).toHaveBeenCalledWith(['note-123', 'note-456'])
     expect(queryClient.getQueryData(noteKeys.detail('note-123'))).toBeUndefined()
     expect(queryClient.getQueryData(noteKeys.detail('note-456'))).toBeUndefined()
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: tagKeys.listByTagsPrefix(),
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: tagKeys.tags() })
   })
 })

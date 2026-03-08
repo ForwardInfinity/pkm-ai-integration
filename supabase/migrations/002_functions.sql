@@ -363,7 +363,8 @@ returns table (
   problem text,
   tags text[],
   is_pinned boolean,
-  updated_at timestamptz
+  updated_at timestamptz,
+  word_count integer
 )
 language sql stable
 security invoker
@@ -375,7 +376,8 @@ as $$
     n.problem,
     n.tags,
     n.is_pinned,
-    n.updated_at
+    n.updated_at,
+    n.word_count
   from notes n
   where n.user_id = (select auth.uid())
     and n.tags && filter_tags

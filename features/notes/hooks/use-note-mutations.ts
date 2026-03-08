@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { Note, UpdateNoteInput, CreateNoteInput, NoteListItem } from '../types'
 import { noteKeys } from './use-notes'
+import { cancelTagQueries, invalidateTagQueries } from './use-tags'
 import { trashKeys } from '@/features/trash/hooks'
 import type { TrashNoteItem } from '@/features/trash/types'
 import { getSyncQueue } from '@/lib/local-db/sync-queue'
@@ -11,6 +12,10 @@ import { getSyncQueue } from '@/lib/local-db/sync-queue'
 // Update note params include the ID
 interface UpdateNoteParams extends UpdateNoteInput {
   id: string
+}
+
+function shouldInvalidateTagLists(data: UpdateNoteInput) {
+  return data.tags !== undefined || data.content !== undefined
 }
 
 async function updateNote({ id, ...data }: UpdateNoteParams): Promise<Note> {
@@ -94,6 +99,9 @@ export function useUpdateNote() {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: noteKeys.detail(newData.id) })
       await queryClient.cancelQueries({ queryKey: noteKeys.lists() })
+      if (shouldInvalidateTagLists(newData)) {
+        await cancelTagQueries(queryClient)
+      }
 
       // Snapshot previous values
       const previousNote = queryClient.getQueryData<Note>(noteKeys.detail(newData.id))
@@ -133,7 +141,7 @@ export function useUpdateNote() {
         queryClient.setQueryData(noteKeys.lists(), context.previousNotes)
       }
     },
-    onSettled: (data) => {
+    onSettled: async (data, _error, variables) => {
       // Always sync with server data after mutation settles
       // Note: Embedding generation is handled by sync-queue.ts after successful server sync
       if (data) {
@@ -151,6 +159,10 @@ export function useUpdateNote() {
             tags: data.tags || [],
           } : n)
         })
+
+        if (shouldInvalidateTagLists(variables)) {
+          await invalidateTagQueries(queryClient)
+        }
       }
     },
   })
@@ -199,6 +211,7 @@ export function useDeleteNote() {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: noteKeys.lists() })
       await queryClient.cancelQueries({ queryKey: trashKeys.list() })
+      await cancelTagQueries(queryClient)
 
       // Snapshot previous states for rollback
       const previousNotes = queryClient.getQueryData<NoteListItem[]>(noteKeys.lists())
@@ -237,9 +250,10 @@ export function useDeleteNote() {
         queryClient.setQueryData(trashKeys.list(), context.previousTrash)
       }
     },
-    onSuccess: (_, id) => {
+    onSuccess: async (_, id) => {
       // Remove from detail cache
       queryClient.removeQueries({ queryKey: noteKeys.detail(id) })
+      await invalidateTagQueries(queryClient)
     },
   })
 }

@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { trashKeys } from './use-trash-notes'
 import { noteKeys } from '@/features/notes/hooks/use-notes'
+import { cancelTagQueries, invalidateTagQueries } from '@/features/notes/hooks/use-tags'
 import type { TrashNoteItem } from '../types'
 import type { NoteListItem } from '@/features/notes/types'
 import { restoreNote as restoreNoteAction } from '../actions/restore-notes'
@@ -49,6 +50,8 @@ export function useRestoreNote() {
     mutationFn: restoreNote,
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: trashKeys.list() })
+      await queryClient.cancelQueries({ queryKey: noteKeys.lists() })
+      await cancelTagQueries(queryClient)
 
       const previousTrash = queryClient.getQueryData<TrashNoteItem[]>(trashKeys.list())
       const restoredNote = previousTrash?.find((n) => n.id === id)
@@ -64,7 +67,7 @@ export function useRestoreNote() {
         queryClient.setQueryData(trashKeys.list(), context.previousTrash)
       }
     },
-    onSuccess: (_, id, context) => {
+    onSuccess: async (_, _id, context) => {
       if (context?.restoredNote) {
         queryClient.setQueryData<NoteListItem[]>(noteKeys.lists(), (old) => {
           if (!old) return old
@@ -80,7 +83,10 @@ export function useRestoreNote() {
           return [restored, ...old]
         })
       }
-      queryClient.invalidateQueries({ queryKey: noteKeys.lists() })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: noteKeys.lists() }),
+        invalidateTagQueries(queryClient),
+      ])
     },
   })
 }

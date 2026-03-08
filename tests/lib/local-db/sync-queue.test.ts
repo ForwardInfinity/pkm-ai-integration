@@ -31,6 +31,10 @@ const mockSupabaseChain = {
 
 const mockTriggerEmbeddingGeneration = vi.fn()
 const mockSyncNoteLinks = vi.fn()
+const mockQueryClient = {
+  setQueryData: vi.fn(),
+  invalidateQueries: vi.fn(),
+}
 let queueItemsState: SyncQueueItem[] = []
 
 function cloneQueueItem(item: SyncQueueItem): SyncQueueItem {
@@ -58,10 +62,7 @@ vi.mock('@/lib/supabase/client', () => ({
 
 // Mock getBrowserQueryClient
 vi.mock('@/lib/query-client', () => ({
-  getBrowserQueryClient: vi.fn(() => ({
-    setQueryData: vi.fn(),
-    invalidateQueries: vi.fn(),
-  })),
+  getBrowserQueryClient: vi.fn(() => mockQueryClient),
 }))
 
 vi.mock('@/features/notes/actions/trigger-embedding', () => ({
@@ -155,6 +156,8 @@ describe('sync-queue', () => {
     })
     mockTriggerEmbeddingGeneration.mockResolvedValue({ success: true })
     mockSyncNoteLinks.mockResolvedValue({ success: true })
+    mockQueryClient.setQueryData.mockReset()
+    mockQueryClient.invalidateQueries.mockReset()
     window.sessionStorage.clear()
 
     // Reset module to get fresh singleton
@@ -284,6 +287,41 @@ describe('sync-queue', () => {
 
       expect(mockSupabaseChain.update).toHaveBeenCalled()
       expect(mockDB.delete).toHaveBeenCalledWith('syncQueue', 1)
+    })
+
+    it('invalidates tag-filtered note queries after a successful tag sync', async () => {
+      const queueItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'server-uuid-123',
+        operation: 'update',
+        data: { tags: ['science'] },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+
+      setQueueItems([queueItem])
+      mockSupabaseChain.maybeSingle.mockResolvedValue({
+        data: {
+          id: 'server-uuid-123',
+          title: 'Updated Title',
+          problem: null,
+          content: '#science',
+          word_count: 2,
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        error: null,
+      })
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      const { tagKeys } = await import('@/features/notes/hooks/use-tags')
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: tagKeys.listByTagsPrefix(),
+      })
+      expect(mockQueryClient.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: tagKeys.tags(),
+      })
     })
 
     it('should increment retry count on error', async () => {

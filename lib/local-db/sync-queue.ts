@@ -14,7 +14,7 @@ import {
 import { getBrowserQueryClient } from '@/lib/query-client'
 import { noteKeys } from '@/features/notes/hooks/use-notes'
 import { backlinkKeys } from '@/features/notes/hooks/use-backlinks'
-import { tagKeys } from '@/features/notes/hooks/use-tags'
+import { invalidateTagQueries } from '@/features/notes/hooks/use-tags'
 import type { NoteListItem, Note } from '@/features/notes/types'
 import { triggerEmbeddingGeneration } from '@/features/notes/actions/trigger-embedding'
 import { syncNoteLinks } from '@/features/notes/actions/sync-note-links'
@@ -496,7 +496,7 @@ class SyncQueue {
       if (item.data.tags && item.data.tags.length > 0) {
         const queryClient = getBrowserQueryClient()
         if (queryClient) {
-          queryClient.invalidateQueries({ queryKey: tagKeys.tags() })
+          void invalidateTagQueries(queryClient)
         }
       }
     } else {
@@ -606,7 +606,7 @@ class SyncQueue {
       if (item.data.tags !== undefined) {
         const queryClient = getBrowserQueryClient()
         if (queryClient) {
-          queryClient.invalidateQueries({ queryKey: tagKeys.tags() })
+          void invalidateTagQueries(queryClient)
         }
       }
     }

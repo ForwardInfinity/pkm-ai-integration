@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { trashKeys } from './use-trash-notes'
 import { noteKeys } from '@/features/notes/hooks/use-notes'
+import { cancelTagQueries, invalidateTagQueries } from '@/features/notes/hooks/use-tags'
 import type { TrashNoteItem } from '../types'
 import type { NoteListItem } from '@/features/notes/types'
 import { restoreNotes } from '../actions/restore-notes'
@@ -23,6 +24,7 @@ export function useBulkRestoreNotes() {
     onMutate: async (ids) => {
       await queryClient.cancelQueries({ queryKey: trashKeys.list() })
       await queryClient.cancelQueries({ queryKey: noteKeys.lists() })
+      await cancelTagQueries(queryClient)
 
       const previousTrash = queryClient.getQueryData<TrashNoteItem[]>(trashKeys.list())
       const previousNotes = queryClient.getQueryData<NoteListItem[]>(noteKeys.lists())
@@ -58,8 +60,11 @@ export function useBulkRestoreNotes() {
         queryClient.setQueryData(noteKeys.lists(), context.previousNotes)
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: noteKeys.lists() })
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: noteKeys.lists() }),
+        invalidateTagQueries(queryClient),
+      ])
     },
   })
 }

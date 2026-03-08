@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { noteKeys } from './use-notes'
+import { cancelTagQueries, invalidateTagQueries } from './use-tags'
 import { trashKeys } from '@/features/trash/hooks'
 import type { NoteListItem } from '../types'
 import type { TrashNoteItem } from '@/features/trash/types'
@@ -36,6 +37,7 @@ export function useBulkDeleteNotes() {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: noteKeys.lists() })
       await queryClient.cancelQueries({ queryKey: trashKeys.list() })
+      await cancelTagQueries(queryClient)
 
       // Snapshot previous states for rollback
       const previousNotes = queryClient.getQueryData<NoteListItem[]>(noteKeys.lists())
@@ -75,11 +77,12 @@ export function useBulkDeleteNotes() {
         queryClient.setQueryData(trashKeys.list(), context.previousTrash)
       }
     },
-    onSuccess: (_, ids) => {
+    onSuccess: async (_, ids) => {
       // Remove from detail caches
       ids.forEach((id) => {
         queryClient.removeQueries({ queryKey: noteKeys.detail(id) })
       })
+      await invalidateTagQueries(queryClient)
     },
   })
 }

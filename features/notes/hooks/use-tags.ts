@@ -1,16 +1,22 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { TagCount, NoteListItem } from '../types'
 import { noteKeys } from './use-notes'
+
+function normalizeTagFilters(tags: string[]) {
+  return [...new Set(tags)].sort()
+}
 
 // Extend noteKeys with tags
 export const tagKeys = {
   ...noteKeys,
   tags: () => [...noteKeys.all, 'tags'] as const,
-  byTag: (tag: string) => [...noteKeys.all, 'byTag', tag] as const,
-  byTags: (tags: string[]) => [...noteKeys.all, 'byTags', tags] as const,
+  listByTagsPrefix: () => [...noteKeys.all, 'byTags'] as const,
+  byTag: (tag: string) => tagKeys.byTags([tag]),
+  byTags: (tags: string[]) => [...tagKeys.listByTagsPrefix(), normalizeTagFilters(tags)] as const,
 }
 
 async function fetchAllTags(): Promise<TagCount[]> {
@@ -29,7 +35,7 @@ async function fetchNotesByTags(tags: string[]): Promise<NoteListItem[]> {
   const supabase = createClient()
 
   const { data, error } = await supabase.rpc('get_notes_by_tags', {
-    filter_tags: tags,
+    filter_tags: normalizeTagFilters(tags),
     include_deleted: false,
   })
 
@@ -38,6 +44,20 @@ async function fetchNotesByTags(tags: string[]): Promise<NoteListItem[]> {
   }
 
   return data ?? []
+}
+
+export async function cancelTagQueries(queryClient: QueryClient) {
+  await Promise.all([
+    queryClient.cancelQueries({ queryKey: tagKeys.listByTagsPrefix() }),
+    queryClient.cancelQueries({ queryKey: tagKeys.tags() }),
+  ])
+}
+
+export async function invalidateTagQueries(queryClient: QueryClient) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: tagKeys.listByTagsPrefix() }),
+    queryClient.invalidateQueries({ queryKey: tagKeys.tags() }),
+  ])
 }
 
 /**

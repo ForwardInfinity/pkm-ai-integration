@@ -26,7 +26,7 @@ export { computePairHash } from './conflict-pair-utils'
  * 2. Get candidate pairs via find_potential_conflicts RPC
  * 3. Filter out already-judged pairs (by pair_content_hash)
  * 4. For each unjudged pair, call LLM and store judgment
- * 5. Create conflicts for high-confidence tension/contradiction judgments
+ * 5. Project the latest applicable judgment into conflicts
  */
 export const detectNoteConflicts = inngest.createFunction(
   {
@@ -280,6 +280,20 @@ export const detectNoteConflicts = inngest.createFunction(
             continue
           }
 
+          const deleteConflictProjection = async () => {
+            const { error: deleteError } = await supabase
+              .from('conflicts')
+              .delete()
+              .eq('note_a_id', pair.noteAId)
+              .eq('note_b_id', pair.noteBId)
+
+            if (deleteError) {
+              console.error(
+                `[Conflicts] Failed to clear conflict projection for pair (${pair.noteAId}, ${pair.noteBId}): ${deleteError.message}`
+              )
+            }
+          }
+
           // Prepare note data for judgment
           const noteAData: NoteForJudgment =
             note.id < pair.candidate.id
@@ -363,53 +377,58 @@ export const detectNoteConflicts = inngest.createFunction(
 
           processed.judged++
 
-          // Create conflict if result is tension/contradiction with high confidence
-          if (
+          const isHighConfidenceConflict =
             (judgment.result === 'tension' ||
               judgment.result === 'contradiction') &&
             judgment.confidence >= CONFIDENCE_THRESHOLD
-          ) {
-            const { error: conflictError } = await supabase
-              .from('conflicts')
-              .upsert(
-                {
-                  user_id: note.user_id,
-                  note_a_id: pair.noteAId,
-                  note_b_id: pair.noteBId,
-                  explanation: judgment.explanation || judgment.reasoning,
-                  conflict_type: judgment.result as 'tension' | 'contradiction',
-                  status: 'active',
-                },
-                { onConflict: 'note_a_id,note_b_id' }
-              )
 
-              if (conflictError) {
-                console.error(
-                  `[Conflicts] Failed to create conflict: ${conflictError.message}`
+          if (!isHighConfidenceConflict) {
+            await deleteConflictProjection()
+            continue
+          }
+
+          const { error: conflictError } = await supabase
+            .from('conflicts')
+            .upsert(
+              {
+                user_id: note.user_id,
+                note_a_id: pair.noteAId,
+                note_b_id: pair.noteBId,
+                pair_content_hash: pair.pairHash,
+                explanation: judgment.explanation || judgment.reasoning,
+                conflict_type: judgment.result as 'tension' | 'contradiction',
+                status: 'active',
+              },
+              { onConflict: 'note_a_id,note_b_id' }
+            )
+
+          if (conflictError) {
+            console.error(
+              `[Conflicts] Failed to create conflict: ${conflictError.message}`
+            )
+          } else {
+            const postConflictEligibility = await verifyPairStillEligible()
+            if (!postConflictEligibility.eligible) {
+              const { error: cleanupError } = await supabase
+                .from('conflicts')
+                .delete()
+                .eq('note_a_id', pair.noteAId)
+                .eq('note_b_id', pair.noteBId)
+                .eq('pair_content_hash', pair.pairHash)
+
+              if (cleanupError) {
+                console.warn(
+                  `[Conflicts] Failed to clean stale conflict for pair (${pair.noteAId}, ${pair.noteBId}): ${cleanupError.message}`
                 )
               } else {
-                const postConflictEligibility = await verifyPairStillEligible()
-                if (!postConflictEligibility.eligible) {
-                  const { error: cleanupError } = await supabase
-                    .from('conflicts')
-                    .delete()
-                    .eq('note_a_id', pair.noteAId)
-                    .eq('note_b_id', pair.noteBId)
-
-                  if (cleanupError) {
-                    console.warn(
-                      `[Conflicts] Failed to clean stale conflict for pair (${pair.noteAId}, ${pair.noteBId}): ${cleanupError.message}`
-                    )
-                  } else {
-                    console.debug(
-                      `[Conflicts] Removed stale conflict for pair (${pair.noteAId}, ${pair.noteBId}): ${postConflictEligibility.reason}`
-                    )
-                  }
-                } else {
-                  processed.conflicts++
-                }
+                console.debug(
+                  `[Conflicts] Removed stale conflict for pair (${pair.noteAId}, ${pair.noteBId}): ${postConflictEligibility.reason}`
+                )
               }
+            } else {
+              processed.conflicts++
             }
+          }
         } catch (error) {
           if (error instanceof NoObjectGeneratedError) {
             // LLM failed to generate valid structured output - skip this pair

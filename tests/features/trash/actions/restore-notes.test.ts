@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const {
   mockSend,
+  mockConflictUpsert,
   mockUpdate,
   mockIn,
   mockNot,
@@ -9,6 +10,7 @@ const {
   mockState,
 } = vi.hoisted(() => ({
   mockSend: vi.fn(),
+  mockConflictUpsert: vi.fn(),
   mockUpdate: vi.fn(),
   mockIn: vi.fn(),
   mockNot: vi.fn(),
@@ -34,6 +36,12 @@ const {
     otherNotes: [] as Array<{
       id: string
       embedding_content_hash: string
+    }>,
+    existingConflicts: [] as Array<{
+      note_a_id: string
+      note_b_id: string
+      pair_content_hash: string
+      status: string
     }>,
     upsertError: null as { message: string } | null,
   },
@@ -76,8 +84,25 @@ vi.mock('@/lib/supabase/server', () => ({
 
       if (table === 'conflicts') {
         return {
-          upsert: () =>
-            Promise.resolve({ error: mockState.upsertError }),
+          select: () => ({
+            eq: (firstField: string, firstValue: string) => ({
+              eq: (secondField: string, secondValue: string) =>
+                Promise.resolve({
+                  data: mockState.existingConflicts.filter(
+                    (conflict) =>
+                      conflict[firstField as 'note_a_id' | 'note_b_id'] ===
+                        firstValue &&
+                      conflict[secondField as 'note_a_id' | 'note_b_id'] ===
+                        secondValue
+                  ),
+                  error: null,
+                }),
+            }),
+          }),
+          upsert: (...args: unknown[]) => {
+            mockConflictUpsert(...args)
+            return Promise.resolve({ error: mockState.upsertError })
+          },
         }
       }
 
@@ -134,6 +159,7 @@ describe('restoreNotes', () => {
     mockState.updateError = null
     mockState.judgments = []
     mockState.otherNotes = []
+    mockState.existingConflicts = []
     mockState.upsertError = null
   })
 
@@ -288,6 +314,15 @@ describe('restoreNotes', () => {
       rehydratedConflicts: 1,
       queuedConflictDetections: 1,
     })
+    expect(mockConflictUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        note_a_id: 'note-1',
+        note_b_id: 'note-2',
+        pair_content_hash: 'pair:hash-1:hash-2',
+        status: 'active',
+      }),
+      { onConflict: 'note_a_id,note_b_id' }
+    )
   })
 
   it('should NOT rehydrate conflicts when pair content hash does not match current content', async () => {
@@ -341,5 +376,83 @@ describe('restoreNotes', () => {
     const result = await restoreNote('note-1')
 
     expect(result.rehydratedConflicts).toBe(0)
+  })
+
+  it('should preserve a dismissed conflict when the dismissal matches the current pair hash', async () => {
+    mockState.updatedNotes = [
+      {
+        id: 'note-1',
+        user_id: 'user-1',
+        embedding_status: 'completed',
+        embedding_content_hash: 'hash-1',
+      },
+    ]
+    mockState.judgments = [
+      {
+        note_a_id: 'note-1',
+        note_b_id: 'note-2',
+        pair_content_hash: 'pair:hash-1:hash-2',
+        judgment_result: 'tension',
+        confidence: 0.9,
+        explanation: 'Still conflicts',
+        reasoning: 'Internal reasoning',
+      },
+    ]
+    mockState.otherNotes = [{ id: 'note-2', embedding_content_hash: 'hash-2' }]
+    mockState.existingConflicts = [
+      {
+        note_a_id: 'note-1',
+        note_b_id: 'note-2',
+        pair_content_hash: 'pair:hash-1:hash-2',
+        status: 'dismissed',
+      },
+    ]
+
+    const result = await restoreNote('note-1')
+
+    expect(result.rehydratedConflicts).toBe(0)
+    expect(mockConflictUpsert).not.toHaveBeenCalled()
+  })
+
+  it('should reactivate a dismissed conflict when the stored dismissal is for an older pair hash', async () => {
+    mockState.updatedNotes = [
+      {
+        id: 'note-1',
+        user_id: 'user-1',
+        embedding_status: 'completed',
+        embedding_content_hash: 'hash-1',
+      },
+    ]
+    mockState.judgments = [
+      {
+        note_a_id: 'note-1',
+        note_b_id: 'note-2',
+        pair_content_hash: 'pair:hash-1:hash-2',
+        judgment_result: 'contradiction',
+        confidence: 0.92,
+        explanation: 'Current contradiction',
+        reasoning: 'Internal reasoning',
+      },
+    ]
+    mockState.otherNotes = [{ id: 'note-2', embedding_content_hash: 'hash-2' }]
+    mockState.existingConflicts = [
+      {
+        note_a_id: 'note-1',
+        note_b_id: 'note-2',
+        pair_content_hash: 'pair:hash-1-OLD:hash-2',
+        status: 'dismissed',
+      },
+    ]
+
+    const result = await restoreNote('note-1')
+
+    expect(result.rehydratedConflicts).toBe(1)
+    expect(mockConflictUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pair_content_hash: 'pair:hash-1:hash-2',
+        status: 'active',
+      }),
+      { onConflict: 'note_a_id,note_b_id' }
+    )
   })
 })

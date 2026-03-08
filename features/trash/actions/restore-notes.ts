@@ -118,6 +118,26 @@ async function rehydrateConflictsFromJudgments(
       const pairKey = `${noteAId}:${noteBId}`
       if (rehydratedPairs.has(pairKey)) continue
 
+      const { data: existingConflicts, error: existingConflictError } = await supabase
+        .from('conflicts')
+        .select('status, pair_content_hash')
+        .eq('note_a_id', noteAId)
+        .eq('note_b_id', noteBId)
+
+      if (existingConflictError) {
+        console.warn(
+          `Failed to inspect existing conflict projection for pair (${noteAId}, ${noteBId}): ${existingConflictError.message}`
+        )
+        continue
+      }
+
+      const existingConflict = existingConflicts?.[0]
+      const dismissalStillApplies =
+        existingConflict?.status === 'dismissed' &&
+        existingConflict.pair_content_hash === currentPairHash
+
+      if (dismissalStillApplies) continue
+
       const { error: conflictError } = await supabase
         .from('conflicts')
         .upsert(
@@ -125,6 +145,7 @@ async function rehydrateConflictsFromJudgments(
             user_id: note.user_id,
             note_a_id: noteAId,
             note_b_id: noteBId,
+            pair_content_hash: currentPairHash,
             explanation: judgment.explanation || judgment.reasoning,
             conflict_type: judgment.judgment_result as
               | 'tension'
@@ -134,7 +155,11 @@ async function rehydrateConflictsFromJudgments(
           { onConflict: 'note_a_id,note_b_id' }
         )
 
-      if (!conflictError) {
+      if (conflictError) {
+        console.warn(
+          `Failed to rehydrate conflict projection for pair (${noteAId}, ${noteBId}): ${conflictError.message}`
+        )
+      } else {
         rehydratedPairs.add(pairKey)
       }
     }

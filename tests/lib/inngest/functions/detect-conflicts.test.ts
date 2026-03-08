@@ -189,17 +189,34 @@ const createMockSupabaseClient = () => ({
           mockAfterConflictUpsert?.()
           return Promise.resolve({ data: { id: 'conflict-1' }, error: null })
         }),
-        delete: vi.fn(() => ({
-          eq: vi.fn((field: string, value: string) => ({
-            eq: vi.fn((secondField: string, secondValue: string) => {
+        delete: vi.fn(() => {
+          const args: string[] = []
+
+          const buildDeleteChain = () => ({
+            eq: (field: string, value: string) => {
+              args.push(field, value)
+              return buildDeleteChain()
+            },
+            then: (
+              resolve: (value: { error: null }) => void,
+              reject?: (reason: unknown) => void
+            ) => {
+              void reject
               mockSupabaseCallLog.push({
                 method: 'conflicts.delete',
-                args: [field, value, secondField, secondValue],
+                args,
               })
+              return Promise.resolve({ error: null }).then(resolve)
+            },
+            catch: () => Promise.resolve({ error: null }),
+            finally: (onFinally?: () => void) => {
+              onFinally?.()
               return Promise.resolve({ error: null })
-            }),
-          })),
-        })),
+            },
+          })
+
+          return buildDeleteChain()
+        }),
       }
     }
 
@@ -968,6 +985,16 @@ describe('detectNoteConflicts', () => {
     })
 
     it('should create conflict when result is tension with high confidence', async () => {
+      const { computePairHash } = await import(
+        '@/lib/inngest/functions/detect-conflicts'
+      )
+      const pairHash = computePairHash(
+        'target-hash',
+        'candidate-hash',
+        'note-123',
+        'note-456'
+      )
+
       mockTargetNote = {
         id: 'note-123',
         user_id: 'user-456',
@@ -1016,6 +1043,7 @@ describe('detectNoteConflicts', () => {
       expect(upsertCall?.args[0]).toMatchObject({
         user_id: 'user-456',
         conflict_type: 'tension',
+        pair_content_hash: pairHash,
         explanation: 'Note A claims X, Note B claims Y',
         status: 'active',
       })
@@ -1119,7 +1147,11 @@ describe('detectNoteConflicts', () => {
       const upsertCall = mockSupabaseCallLog.find(
         (c) => c.method === 'conflicts.upsert'
       )
+      const deleteCall = mockSupabaseCallLog.find(
+        (c) => c.method === 'conflicts.delete'
+      )
       expect(upsertCall).toBeUndefined() // No conflict created
+      expect(deleteCall).toBeDefined()
       expect(result.judged).toBe(1) // But judgment was recorded
       expect(result.conflicts).toBe(0)
     })
@@ -1222,7 +1254,11 @@ describe('detectNoteConflicts', () => {
       const upsertCall = mockSupabaseCallLog.find(
         (c) => c.method === 'conflicts.upsert'
       )
+      const deleteCall = mockSupabaseCallLog.find(
+        (c) => c.method === 'conflicts.delete'
+      )
       expect(upsertCall).toBeUndefined()
+      expect(deleteCall).toBeDefined()
       expect(result.conflicts).toBe(0)
     })
 

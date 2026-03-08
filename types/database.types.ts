@@ -79,6 +79,7 @@ export type Database = {
           id: string
           note_a_id: string
           note_b_id: string
+          pair_content_hash: string
           status: Database["public"]["Enums"]["conflict_status"]
           user_id: string
         }
@@ -89,6 +90,7 @@ export type Database = {
           id?: string
           note_a_id: string
           note_b_id: string
+          pair_content_hash: string
           status?: Database["public"]["Enums"]["conflict_status"]
           user_id: string
         }
@@ -99,6 +101,7 @@ export type Database = {
           id?: string
           note_a_id?: string
           note_b_id?: string
+          pair_content_hash?: string
           status?: Database["public"]["Enums"]["conflict_status"]
           user_id?: string
         }
@@ -292,6 +295,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      compute_pair_content_hash: {
+        Args: {
+          note_a_hash: string
+          note_a_id: string
+          note_b_hash: string
+          note_b_id: string
+        }
+        Returns: string
+      }
       find_potential_conflicts: {
         Args: {
           match_count?: number

@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
+import { signOutClient } from "@/lib/local-db/auth";
 
 export function AdminLoginForm({
   className,
@@ -52,12 +53,12 @@ export function AdminLoginForm({
       );
 
       if (adminError) {
-        await supabase.auth.signOut();
+        await signOutClient();
         throw new Error("Failed to verify admin privileges.");
       }
 
       if (!isAdmin) {
-        await supabase.auth.signOut();
+        await signOutClient();
         setError("This account does not have administrator privileges.");
         return;
       }

@@ -21,6 +21,7 @@ const mockDB = {
   getAll: vi.fn(),
   getAllFromIndex: vi.fn(),
   transaction: vi.fn(() => mockTx),
+  close: vi.fn(),
 }
 
 vi.mock('idb', () => ({
@@ -28,6 +29,10 @@ vi.mock('idb', () => ({
 }))
 
 // Import after mocking
+import {
+  setActiveLocalDbUser,
+} from '@/lib/local-db'
+
 import {
   saveNoteLocally,
   getNoteLocally,
@@ -58,8 +63,10 @@ describe('note-cache', () => {
     syncStatus: 'pending',
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
+    await setActiveLocalDbUser(null)
+    await setActiveLocalDbUser('test-user-id')
     mockDB.get.mockResolvedValue(undefined)
     mockDB.put.mockResolvedValue(undefined)
     mockDB.delete.mockResolvedValue(undefined)

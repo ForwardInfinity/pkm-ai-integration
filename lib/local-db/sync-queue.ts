@@ -1,5 +1,12 @@
 import { createClient } from '@/lib/supabase/client'
-import { getDB, LocalNote, SyncQueueItem } from './index'
+import {
+  getActiveLocalDbUserId,
+  getAuthenticatedLocalDbUserId,
+  getDB,
+  LocalNote,
+  setActiveLocalDbUser,
+  SyncQueueItem,
+} from './index'
 import {
   getNoteLocally,
   markNoteSynced,
@@ -26,7 +33,7 @@ import {
 
 const SYNC_DEBOUNCE_MS = 2000
 const MAX_RETRIES = 3
-const BROADCAST_CHANNEL_NAME = 'refinery-notes-sync'
+const BROADCAST_CHANNEL_NAME_PREFIX = 'refinery-notes-sync'
 const TEMP_ID_MAPPING_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
 type NoteChangeListener = (noteId: string, data: Partial<LocalNote>) => void
@@ -50,6 +57,7 @@ class SyncQueue {
   private listeners: Set<NoteChangeListener> = new Set()
   private broadcastChannel: BroadcastChannel | null = null
   private tempIdToServerIdMap: Map<string, string> = new Map()
+  private activeUserId: string | null = null
   // Lock mechanism to serialize enqueue operations per noteId
   private enqueueLocks: Map<string, Promise<void>> = new Map()
   // Track notes with pending CREATE operations to prevent duplicates
@@ -57,10 +65,51 @@ class SyncQueue {
   // Track if we've loaded persisted mappings from IndexedDB
   private initialized = false
 
-  constructor() {
-    if (typeof window !== 'undefined') {
-      this.initBroadcastChannel()
+  constructor() {}
+
+  private resetScope(userId: string | null): void {
+    if (this.activeUserId === userId) return
+
+    this.activeUserId = userId
+    this.initialized = false
+    this.tempIdToServerIdMap.clear()
+    this.pendingCreates.clear()
+
+    if (this.broadcastChannel) {
+      this.broadcastChannel.close()
+      this.broadcastChannel = null
     }
+
+    if (typeof window !== 'undefined' && userId) {
+      this.initBroadcastChannel(userId)
+    }
+  }
+
+  private async applyUserScope(userId: string | null): Promise<string | null> {
+    if (getActiveLocalDbUserId() !== userId) {
+      await setActiveLocalDbUser(userId)
+    }
+
+    this.resetScope(userId)
+    return userId
+  }
+
+  private async getRequiredLocalUserId(): Promise<string> {
+    const userId =
+      getActiveLocalDbUserId() ??
+      await getAuthenticatedLocalDbUserId()
+
+    if (!userId) {
+      throw new Error('Not authenticated')
+    }
+
+    await this.applyUserScope(userId)
+    return userId
+  }
+
+  private async getAuthenticatedUserScope(): Promise<string | null> {
+    const userId = await getAuthenticatedLocalDbUserId()
+    return this.applyUserScope(userId)
   }
 
   private async initialize(): Promise<void> {
@@ -73,9 +122,11 @@ class SyncQueue {
     this.initialized = true
   }
 
-  private initBroadcastChannel(): void {
+  private initBroadcastChannel(userId: string): void {
     try {
-      this.broadcastChannel = new BroadcastChannel(BROADCAST_CHANNEL_NAME)
+      this.broadcastChannel = new BroadcastChannel(
+        `${BROADCAST_CHANNEL_NAME_PREFIX}-${userId}`
+      )
       this.broadcastChannel.onmessage = (event) => {
         const { type, noteId, data, senderId } = event.data
         // Ignore messages from this tab
@@ -163,6 +214,7 @@ class SyncQueue {
   }
 
   private async enqueueInternal(noteId: string, data: Partial<LocalNote>): Promise<void> {
+    await this.getRequiredLocalUserId()
     await this.initialize()
     const db = await getDB()
 
@@ -218,6 +270,9 @@ class SyncQueue {
   }
 
   async processQueue(): Promise<void> {
+    const userId = await this.getAuthenticatedUserScope()
+    if (!userId) return
+
     // Skip if already processing in this tab
     if (this.isProcessing) return
 
@@ -229,7 +284,7 @@ class SyncQueue {
           { ifAvailable: true }, // Non-blocking: skip if another tab holds lock
           async (lock) => {
             if (lock) {
-              await this.processQueueInternal()
+              await this.processQueueInternal(userId)
             }
             // If lock is null, another tab is processing - silently skip
           }
@@ -237,11 +292,11 @@ class SyncQueue {
       } catch {
         // Web Locks not available (SSR, older browser) - fallback to local-only lock
         console.debug('Web Locks unavailable, using local lock only')
-        await this.processQueueInternal()
+        await this.processQueueInternal(userId)
       }
     } else {
       // No Web Locks (SSR context) - use local lock only
-      await this.processQueueInternal()
+      await this.processQueueInternal(userId)
     }
   }
 
@@ -252,6 +307,7 @@ class SyncQueue {
   async removeNotes(noteIds: string[]): Promise<void> {
     if (noteIds.length === 0) return
 
+    await this.getRequiredLocalUserId()
     await this.initialize()
     const db = await getDB()
     const relatedNoteIds = new Set(noteIds)
@@ -316,11 +372,16 @@ class SyncQueue {
     }
   }
 
-  private async processQueueInternal(): Promise<void> {
+  private async processQueueInternal(expectedUserId: string): Promise<void> {
     if (this.isProcessing) return
     this.isProcessing = true
 
     try {
+      const currentUserId = await this.getAuthenticatedUserScope()
+      if (!currentUserId || currentUserId !== expectedUserId) {
+        return
+      }
+
       await this.initialize()
       const db = await getDB()
       const items = await db.getAll('syncQueue')
@@ -337,7 +398,7 @@ class SyncQueue {
         if (currentItem.lastError) continue
 
         try {
-          await this.processItem(currentItem)
+          await this.processItem(currentItem, expectedUserId)
           // Remove from queue on success
           if (currentItem.id !== undefined) {
             await db.delete('syncQueue', currentItem.id)
@@ -412,7 +473,7 @@ class SyncQueue {
     }
   }
 
-  private async processItem(item: SyncQueueItem): Promise<void> {
+  private async processItem(item: SyncQueueItem, userId: string): Promise<void> {
     const supabase = createClient()
 
     if (item.operation === 'create') {
@@ -427,16 +488,13 @@ class SyncQueue {
       }
 
       // Create new note on server
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-
       const localNote = await getNoteLocally(item.noteId)
       if (!localNote) return
 
       const { data: created, error } = await supabase
         .from('notes')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           title: localNote.title || 'Untitled',
           problem: localNote.problem,
           content: localNote.content || '',
@@ -658,10 +716,16 @@ class SyncQueue {
   destroy(): void {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer)
+      this.debounceTimer = null
     }
     if (this.broadcastChannel) {
       this.broadcastChannel.close()
+      this.broadcastChannel = null
     }
+    this.activeUserId = null
+    this.initialized = false
+    this.pendingCreates.clear()
+    this.tempIdToServerIdMap.clear()
   }
 }
 
@@ -694,8 +758,21 @@ export async function requeueRecoveredNote(note: LocalNote): Promise<void> {
 }
 
 export async function resumeSyncQueueOnStartup(): Promise<void> {
+  const userId = await getAuthenticatedLocalDbUserId()
+  if (!userId) {
+    return
+  }
+
+  await setActiveLocalDbUser(userId)
   const syncQueue = getSyncQueue()
   await syncQueue.flushSync()
+}
+
+export function resetSyncQueue(): void {
+  if (syncQueueInstance) {
+    syncQueueInstance.destroy()
+    syncQueueInstance = null
+  }
 }
 
 export type { NoteChangeListener }

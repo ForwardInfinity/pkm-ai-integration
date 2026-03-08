@@ -9,7 +9,7 @@ import {
   Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { createClient } from '@/lib/supabase/client'
+import { signOutClient } from '@/lib/local-db/auth'
 
 interface NavItem {
   label: string
@@ -28,8 +28,7 @@ export function AdminSidebar() {
   const router = useRouter()
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await signOutClient()
     router.push('/admin/login')
   }
 

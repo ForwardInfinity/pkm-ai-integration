@@ -12,6 +12,7 @@ const mockDB = {
   delete: vi.fn(),
   getAll: vi.fn(),
   getAllFromIndex: vi.fn(),
+  close: vi.fn(),
 }
 
 vi.mock('idb', () => ({
@@ -37,6 +38,7 @@ const mockQueryClient = {
   invalidateQueries: vi.fn(),
 }
 let queueItemsState: SyncQueueItem[] = []
+let mockAuthenticatedUserId: string | null = 'test-user-id'
 
 function cloneQueueItem(item: SyncQueueItem): SyncQueueItem {
   return {
@@ -52,10 +54,14 @@ function setQueueItems(items: SyncQueueItem[]) {
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     auth: {
-      getUser: vi.fn().mockResolvedValue({
-        data: { user: { id: 'test-user-id' } },
+      getUser: vi.fn().mockImplementation(() => Promise.resolve({
+        data: {
+          user: mockAuthenticatedUserId
+            ? { id: mockAuthenticatedUserId }
+            : null,
+        },
         error: null,
-      }),
+      })),
     },
     from: vi.fn(() => mockSupabaseChain),
   }),
@@ -100,10 +106,12 @@ vi.mock('@/lib/local-db/note-cache', () => ({
 describe('sync-queue', () => {
   let getSyncQueue: () => ReturnType<typeof import('@/lib/local-db/sync-queue').getSyncQueue>
   let getNoteLocally: typeof import('@/lib/local-db/note-cache').getNoteLocally
+  let setActiveLocalDbUser: typeof import('@/lib/local-db').setActiveLocalDbUser
 
   beforeEach(async () => {
     vi.clearAllMocks()
     vi.clearAllTimers()
+    mockAuthenticatedUserId = 'test-user-id'
 
     // Reset mock-backed queue state
     setQueueItems([])
@@ -173,7 +181,10 @@ describe('sync-queue', () => {
     // Re-import after reset
     const syncQueueModule = await import('@/lib/local-db/sync-queue')
     getSyncQueue = syncQueueModule.getSyncQueue
-    
+
+    const localDbModule = await import('@/lib/local-db')
+    setActiveLocalDbUser = localDbModule.setActiveLocalDbUser
+
     const noteCacheModule = await import('@/lib/local-db/note-cache')
     getNoteLocally = noteCacheModule.getNoteLocally as typeof getNoteLocally
   })
@@ -267,6 +278,45 @@ describe('sync-queue', () => {
 
       expect(mockSupabaseChain.insert).toHaveBeenCalled()
       expect(mockDB.delete).toHaveBeenCalledWith('syncQueue', 1)
+    })
+
+    it('binds create operations to the authenticated user scope after a stale namespace', async () => {
+      mockAuthenticatedUserId = 'fresh-user-id'
+      await setActiveLocalDbUser('stale-user-id')
+
+      const localNote: LocalNote = {
+        id: 'temp_123',
+        title: 'Scoped Note',
+        problem: null,
+        content: 'Content',
+        wordCount: 1,
+        updatedAt: Date.now(),
+        syncStatus: 'pending',
+        tempId: 'temp_123',
+      }
+
+      const queueItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'temp_123',
+        operation: 'create',
+        data: { title: 'Scoped Note' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+
+      setQueueItems([queueItem])
+      ;(getNoteLocally as ReturnType<typeof vi.fn>).mockResolvedValue(localNote)
+      mockSupabaseChain.single.mockResolvedValue({
+        data: { id: 'server-uuid', title: 'Scoped Note', updated_at: '2024-01-01T00:00:00Z' },
+        error: null,
+      })
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      expect(mockSupabaseChain.insert).toHaveBeenCalledWith(expect.objectContaining({
+        user_id: 'fresh-user-id',
+      }))
     })
 
     it('should process update operation successfully', async () => {
@@ -552,6 +602,18 @@ describe('sync-queue', () => {
       await resumeSyncQueueOnStartup()
 
       expect(processSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('should not resume queue processing without an authenticated user', async () => {
+      mockAuthenticatedUserId = null
+
+      const { resumeSyncQueueOnStartup } = await import('@/lib/local-db/sync-queue')
+      const syncQueue = getSyncQueue()
+      const processSpy = vi.spyOn(syncQueue, 'processQueue').mockResolvedValue(undefined)
+
+      await resumeSyncQueueOnStartup()
+
+      expect(processSpy).not.toHaveBeenCalled()
     })
   })
 

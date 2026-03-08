@@ -1,8 +1,8 @@
 "use client"
 
 import { LogOut, Settings, User } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
+import { signOutClient } from "@/lib/local-db/auth"
 
 import {
   DropdownMenu,
@@ -31,9 +31,7 @@ export function UserNav({ email, isCollapsed = false }: UserNavProps) {
   const router = useRouter()
 
   const handleLogout = async () => {
-    // Create client inside handler, not at render time (fixes anti-pattern)
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await signOutClient()
     router.refresh()
     router.push("/login")
   }

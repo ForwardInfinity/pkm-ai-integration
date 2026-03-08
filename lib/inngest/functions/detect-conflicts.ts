@@ -170,6 +170,7 @@ export const detectNoteConflicts = inngest.createFunction(
           const [noteAId, noteBId] = getCanonicalPairIds(note.id, candidate.id)
 
           return {
+            userId: note.user_id,
             noteAId,
             noteBId,
             pairHash,
@@ -186,6 +187,7 @@ export const detectNoteConflicts = inngest.createFunction(
         const existingJudgmentKeys = await fetchExistingJudgmentKeys(
           supabase,
           pairData.map((pair) => ({
+            userId: pair.userId,
             noteAId: pair.noteAId,
             noteBId: pair.noteBId,
             pairHash: pair.pairHash,

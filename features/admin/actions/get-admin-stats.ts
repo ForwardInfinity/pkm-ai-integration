@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import type { AdminStats, EmbeddingDetails, EmbeddingFailure } from "../types";
+import { requireAdminClient } from "../utils/require-admin";
 
 export interface GetAdminStatsResult {
   success: boolean;
@@ -21,7 +21,7 @@ export interface GetEmbeddingDetailsResult {
  */
 export async function getAdminStats(): Promise<GetAdminStatsResult> {
   try {
-    const supabase = await createClient();
+    const supabase = await requireAdminClient();
 
     const { data, error } = await supabase.rpc("get_admin_dashboard_stats");
 
@@ -51,7 +51,7 @@ export async function getAdminStats(): Promise<GetAdminStatsResult> {
  */
 export async function getEmbeddingDetails(): Promise<GetEmbeddingDetailsResult> {
   try {
-    const supabase = await createClient();
+    const supabase = await requireAdminClient();
 
     const { data, error } = await supabase.rpc("get_admin_embedding_details");
 

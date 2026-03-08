@@ -30,7 +30,7 @@ export const reconcileConflicts = inngest.createFunction(
     const candidateNotes = await step.run('fetch-candidate-notes', async () => {
       const { data, error } = await supabase
         .from('notes')
-        .select('id, embedding_content_hash')
+        .select('id, user_id, embedding_content_hash')
         .eq('embedding_status', 'completed')
         .not('embedding_content_hash', 'is', null)
         .is('deleted_at', null)
@@ -42,8 +42,13 @@ export const reconcileConflicts = inngest.createFunction(
       }
 
       return (data || []).filter(
-        (n): n is { id: string; embedding_content_hash: string } =>
-          Boolean(n.embedding_content_hash)
+        (
+          n
+        ): n is {
+          id: string
+          user_id: string
+          embedding_content_hash: string
+        } => Boolean(n.user_id && n.embedding_content_hash)
       )
     })
 
@@ -57,6 +62,7 @@ export const reconcileConflicts = inngest.createFunction(
     const candidateMatches = await step.run('collect-candidate-pairs', async () => {
       const collected: Array<{
         sourceNoteId: string
+        sourceUserId: string
         sourceContentHash: string
         candidateId: string
       }> = []
@@ -77,6 +83,7 @@ export const reconcileConflicts = inngest.createFunction(
         for (const candidate of data || []) {
           collected.push({
             sourceNoteId: note.id,
+            sourceUserId: note.user_id,
             sourceContentHash: note.embedding_content_hash,
             candidateId: candidate.note_id,
           })
@@ -131,6 +138,7 @@ export const reconcileConflicts = inngest.createFunction(
       const uniquePairs = new Map<
         string,
         {
+          userId: string
           sourceNoteId: string
           sourceContentHash: string
           noteAId: string
@@ -159,6 +167,7 @@ export const reconcileConflicts = inngest.createFunction(
 
         if (!uniquePairs.has(pairKey)) {
           uniquePairs.set(pairKey, {
+            userId: match.sourceUserId,
             sourceNoteId: match.sourceNoteId,
             sourceContentHash: match.sourceContentHash,
             noteAId,
@@ -171,6 +180,7 @@ export const reconcileConflicts = inngest.createFunction(
       const existingJudgmentKeys = await fetchExistingJudgmentKeys(
         supabase,
         Array.from(uniquePairs.values()).map((pair) => ({
+          userId: pair.userId,
           noteAId: pair.noteAId,
           noteBId: pair.noteBId,
           pairHash: pair.pairHash,

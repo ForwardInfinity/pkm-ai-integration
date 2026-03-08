@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import type { AdminUser } from "../types";
+import { requireAdminClient } from "../utils/require-admin";
 
 export interface GetUsersResult {
   success: boolean;
@@ -15,7 +15,7 @@ export interface GetUsersResult {
  */
 export async function getUsers(): Promise<GetUsersResult> {
   try {
-    const supabase = await createClient();
+    const supabase = await requireAdminClient();
 
     const { data, error } = await supabase.rpc("get_admin_users");
 

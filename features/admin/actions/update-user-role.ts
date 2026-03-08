@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import type { UserRole } from "../types";
+import { requireAdminClient } from "../utils/require-admin";
 
 export interface UpdateUserRoleResult {
   success: boolean;
@@ -19,7 +19,7 @@ export async function updateUserRole(
   role: UserRole
 ): Promise<UpdateUserRoleResult> {
   try {
-    const supabase = await createClient();
+    const supabase = await requireAdminClient();
 
     const { data, error } = await supabase
       .from("profiles")

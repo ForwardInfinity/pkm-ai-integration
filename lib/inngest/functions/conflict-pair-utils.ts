@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
 
 export type PairJudgmentLookup = {
+  userId: string
   noteAId: string
   noteBId: string
   pairHash: string
@@ -49,28 +50,47 @@ export async function fetchExistingJudgmentKeys(
     return new Set()
   }
 
-  const noteAIds = [...new Set(pairs.map((pair) => pair.noteAId))]
-  const noteBIds = [...new Set(pairs.map((pair) => pair.noteBId))]
-  const pairHashes = [...new Set(pairs.map((pair) => pair.pairHash))]
+  const pairsByUserId = new Map<string, PairJudgmentLookup[]>()
 
-  const { data, error } = await supabase
-    .from('conflict_judgments')
-    .select('note_a_id, note_b_id, pair_content_hash')
-    .in('note_a_id', noteAIds)
-    .in('note_b_id', noteBIds)
-    .in('pair_content_hash', pairHashes)
+  for (const pair of pairs) {
+    const userPairs = pairsByUserId.get(pair.userId)
+    if (userPairs) {
+      userPairs.push(pair)
+      continue
+    }
 
-  if (error) {
-    throw new Error(`Failed to query existing judgments: ${error.message}`)
+    pairsByUserId.set(pair.userId, [pair])
   }
 
-  return new Set(
-    (data || []).map((judgment) =>
-      buildPairJudgmentKey(
-        judgment.note_a_id,
-        judgment.note_b_id,
-        judgment.pair_content_hash
+  const existingKeys = new Set<string>()
+
+  for (const [userId, userPairs] of pairsByUserId.entries()) {
+    const noteAIds = [...new Set(userPairs.map((pair) => pair.noteAId))]
+    const noteBIds = [...new Set(userPairs.map((pair) => pair.noteBId))]
+    const pairHashes = [...new Set(userPairs.map((pair) => pair.pairHash))]
+
+    const { data, error } = await supabase
+      .from('conflict_judgments')
+      .select('note_a_id, note_b_id, pair_content_hash')
+      .eq('user_id', userId)
+      .in('note_a_id', noteAIds)
+      .in('note_b_id', noteBIds)
+      .in('pair_content_hash', pairHashes)
+
+    if (error) {
+      throw new Error(`Failed to query existing judgments: ${error.message}`)
+    }
+
+    for (const judgment of data || []) {
+      existingKeys.add(
+        buildPairJudgmentKey(
+          judgment.note_a_id,
+          judgment.note_b_id,
+          judgment.pair_content_hash
+        )
       )
-    )
-  )
+    }
+  }
+
+  return existingKeys
 }

@@ -5,6 +5,7 @@ const mockStepRun = vi.fn((name: string, fn: () => Promise<unknown>) => fn())
 let mockQueryLog: Array<{ method: string; args: unknown[] }> = []
 let mockCandidateNotes: Array<{
   id: string
+  user_id: string
   embedding_content_hash: string | null
 }> = []
 let mockHashLookupNotes: Array<{
@@ -14,6 +15,7 @@ let mockHashLookupNotes: Array<{
   deleted_at?: string | null
 }> = []
 let mockExistingJudgments: Array<{
+  user_id: string
   note_a_id: string
   note_b_id: string
   pair_content_hash: string
@@ -121,46 +123,58 @@ const createReconcileConflictsMockSupabaseClient = () => ({
     if (table === 'conflict_judgments') {
       return {
         select: vi.fn(() => ({
-          in: vi.fn((firstField: string, firstValues: string[]) => {
+          eq: vi.fn((userField: string, userValue: string) => {
             mockQueryLog.push({
-              method: 'conflict_judgments.select.in',
-              args: [firstField, firstValues],
+              method: 'conflict_judgments.select.eq',
+              args: [userField, userValue],
             })
 
             return {
-              in: vi.fn((secondField: string, secondValues: string[]) => {
+              in: vi.fn((firstField: string, firstValues: string[]) => {
                 mockQueryLog.push({
                   method: 'conflict_judgments.select.in',
-                  args: [secondField, secondValues],
+                  args: [firstField, firstValues],
                 })
 
                 return {
-                  in: vi.fn((thirdField: string, thirdValues: string[]) => {
+                  in: vi.fn((secondField: string, secondValues: string[]) => {
                     mockQueryLog.push({
                       method: 'conflict_judgments.select.in',
-                      args: [thirdField, thirdValues],
+                      args: [secondField, secondValues],
                     })
 
-                    const filters = {
-                      [firstField]: firstValues,
-                      [secondField]: secondValues,
-                      [thirdField]: thirdValues,
-                    } as Record<string, string[]>
+                    return {
+                      in: vi.fn((thirdField: string, thirdValues: string[]) => {
+                        mockQueryLog.push({
+                          method: 'conflict_judgments.select.in',
+                          args: [thirdField, thirdValues],
+                        })
 
-                    return Promise.resolve({
-                      data: mockExistingJudgments.filter(
-                        (judgment) =>
-                          (!filters.note_a_id ||
-                            filters.note_a_id.includes(judgment.note_a_id)) &&
-                          (!filters.note_b_id ||
-                            filters.note_b_id.includes(judgment.note_b_id)) &&
-                          (!filters.pair_content_hash ||
-                            filters.pair_content_hash.includes(
-                              judgment.pair_content_hash
-                            ))
-                      ),
-                      error: null,
-                    })
+                        const filters = {
+                          [userField]: [userValue],
+                          [firstField]: firstValues,
+                          [secondField]: secondValues,
+                          [thirdField]: thirdValues,
+                        } as Record<string, string[]>
+
+                        return Promise.resolve({
+                          data: mockExistingJudgments.filter(
+                            (judgment) =>
+                              (!filters.user_id ||
+                                filters.user_id.includes(judgment.user_id)) &&
+                              (!filters.note_a_id ||
+                                filters.note_a_id.includes(judgment.note_a_id)) &&
+                              (!filters.note_b_id ||
+                                filters.note_b_id.includes(judgment.note_b_id)) &&
+                              (!filters.pair_content_hash ||
+                                filters.pair_content_hash.includes(
+                                  judgment.pair_content_hash
+                                ))
+                          ),
+                          error: null,
+                        })
+                      }),
+                    }
                   }),
                 }
               }),
@@ -278,8 +292,8 @@ describe('reconcileConflicts', () => {
 
     it('should return early when no candidate pairs are found', async () => {
       mockCandidateNotes = [
-        { id: 'note-1', embedding_content_hash: 'hash-1' },
-        { id: 'note-2', embedding_content_hash: 'hash-2' },
+        { id: 'note-1', user_id: 'user-1', embedding_content_hash: 'hash-1' },
+        { id: 'note-2', user_id: 'user-1', embedding_content_hash: 'hash-2' },
       ]
       mockRpcCandidatesByNoteId = {
         'note-1': [],
@@ -308,8 +322,8 @@ describe('reconcileConflicts', () => {
 
     it('should not skip an unjudged pair just because the note has other judgments', async () => {
       mockCandidateNotes = [
-        { id: 'note-1', embedding_content_hash: 'hash-1' },
-        { id: 'note-2', embedding_content_hash: 'hash-2' },
+        { id: 'note-1', user_id: 'user-1', embedding_content_hash: 'hash-1' },
+        { id: 'note-2', user_id: 'user-1', embedding_content_hash: 'hash-2' },
       ]
       mockRpcCandidatesByNoteId = {
         'note-1': [{ note_id: 'note-2', similarity: 0.92 }],
@@ -317,6 +331,7 @@ describe('reconcileConflicts', () => {
       }
       mockExistingJudgments = [
         {
+          user_id: 'user-1',
           note_a_id: 'note-1',
           note_b_id: 'note-3',
           pair_content_hash: 'other-pair-hash',
@@ -361,8 +376,8 @@ describe('reconcileConflicts', () => {
 
     it('should not emit events when every candidate pair already has a judgment', async () => {
       mockCandidateNotes = [
-        { id: 'note-1', embedding_content_hash: 'hash-1' },
-        { id: 'note-2', embedding_content_hash: 'hash-2' },
+        { id: 'note-1', user_id: 'user-1', embedding_content_hash: 'hash-1' },
+        { id: 'note-2', user_id: 'user-1', embedding_content_hash: 'hash-2' },
       ]
       mockRpcCandidatesByNoteId = {
         'note-1': [{ note_id: 'note-2', similarity: 0.88 }],
@@ -374,6 +389,7 @@ describe('reconcileConflicts', () => {
       const pairHash = computePairHash('hash-1', 'hash-2', 'note-1', 'note-2')
       mockExistingJudgments = [
         {
+          user_id: 'user-1',
           note_a_id: 'note-1',
           note_b_id: 'note-2',
           pair_content_hash: pairHash,
@@ -398,13 +414,17 @@ describe('reconcileConflicts', () => {
       expect(result.uniquePairs).toBe(1)
       expect(result.message).toContain('already have conflict judgments')
       expect(mockStepSendEvent).not.toHaveBeenCalled()
+      expect(mockQueryLog).toContainEqual({
+        method: 'conflict_judgments.select.eq',
+        args: ['user_id', 'user-1'],
+      })
     })
 
     it('should re-emit a note when only some of its pairs have already been judged', async () => {
       mockCandidateNotes = [
-        { id: 'note-1', embedding_content_hash: 'hash-1' },
-        { id: 'note-2', embedding_content_hash: 'hash-2' },
-        { id: 'note-3', embedding_content_hash: 'hash-3' },
+        { id: 'note-1', user_id: 'user-1', embedding_content_hash: 'hash-1' },
+        { id: 'note-2', user_id: 'user-1', embedding_content_hash: 'hash-2' },
+        { id: 'note-3', user_id: 'user-1', embedding_content_hash: 'hash-3' },
       ]
       mockRpcCandidatesByNoteId = {
         'note-1': [
@@ -418,6 +438,7 @@ describe('reconcileConflicts', () => {
       )
       mockExistingJudgments = [
         {
+          user_id: 'user-1',
           note_a_id: 'note-1',
           note_b_id: 'note-2',
           pair_content_hash: computePairHash(
@@ -460,7 +481,9 @@ describe('reconcileConflicts', () => {
     })
 
     it('should fetch hashes for candidates outside the initial batch', async () => {
-      mockCandidateNotes = [{ id: 'note-1', embedding_content_hash: 'hash-1' }]
+      mockCandidateNotes = [
+        { id: 'note-1', user_id: 'user-1', embedding_content_hash: 'hash-1' },
+      ]
       mockRpcCandidatesByNoteId = {
         'note-1': [{ note_id: 'note-99', similarity: 0.82 }],
       }

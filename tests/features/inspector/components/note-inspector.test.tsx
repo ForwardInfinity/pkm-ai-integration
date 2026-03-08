@@ -43,7 +43,7 @@ describe('NoteInspector', () => {
     act(() => {
       const store = useNoteEditorStore.getState()
       store.setCurrentDraftId({
-        id: 'temp-note-id',
+        id: 'temp_abc',
         persistedId: null,
         isUnsaved: true,
         source: 'local-draft',

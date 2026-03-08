@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { RelatedNote } from '../types'
+import { getPersistedNoteId } from '../utils/note-id'
 
 export const DEFAULT_MATCH_COUNT = 5
 export const DEFAULT_SIMILARITY_THRESHOLD = 0.3
@@ -45,15 +46,17 @@ export function useRelatedNotes(
   matchCount = DEFAULT_MATCH_COUNT,
   matchThreshold = DEFAULT_SIMILARITY_THRESHOLD
 ) {
+  const persistedNoteId = getPersistedNoteId(noteId)
+
   return useQuery({
-    queryKey: noteId
-      ? relatedNotesKeys.list(noteId, matchCount, matchThreshold)
+    queryKey: persistedNoteId
+      ? relatedNotesKeys.list(persistedNoteId, matchCount, matchThreshold)
       : ['related-notes', 'none'],
     queryFn: () =>
-      noteId
-        ? fetchRelatedNotes(noteId, matchCount, matchThreshold)
+      persistedNoteId
+        ? fetchRelatedNotes(persistedNoteId, matchCount, matchThreshold)
         : Promise.resolve([]),
-    enabled: !!noteId && noteId !== 'new',
+    enabled: !!persistedNoteId,
     staleTime: 30 * 1000,
   })
 }

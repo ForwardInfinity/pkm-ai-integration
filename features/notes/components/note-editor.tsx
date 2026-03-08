@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from 'react'
 import { nanoid } from 'nanoid'
 import { MarkdownEditor } from '@/components/editor'
 import { useNote, useNotes } from '../hooks'
@@ -21,6 +21,7 @@ import type { LocalNote } from '@/lib/local-db'
 import type { WikiLinkConfig, HashTagConfig } from '@/components/editor/types'
 import { useRouter } from 'next/navigation'
 import { extractTagsFromMarkdown } from '@/lib/tags'
+import { isUnsavedNoteId } from '../utils/note-id'
 
 interface NoteEditorProps {
   noteId: string
@@ -29,6 +30,8 @@ interface NoteEditorProps {
 
 export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   const isNewNote = noteId === 'new'
+  const isUnsavedNote = isUnsavedNoteId(noteId)
+  const isTempNote = noteId.startsWith('temp_')
   const hasUpdatedUrl = useRef(false)
 
   // Generate stable local ID for new notes
@@ -118,11 +121,11 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   const [title, setTitle] = useState('')
   const [problem, setProblem] = useState('')
   const [content, setContent] = useState('')
-  const [isRecovering, setIsRecovering] = useState(true)
+  const [isRecovering, setIsRecovering] = useState(!isNewNote)
 
   // Draft bookkeeping for the shared inspector state
   const latestDraftRef = useRef({ title: '', problem: '', content: '' })
-  const hasRecoveredLocalDraftRef = useRef(isNewNote)
+  const hasRecoveredLocalDraftRef = useRef(isUnsavedNote)
 
   // Calculate word count from content
   const calculateWordCount = useCallback((text: string) => {
@@ -226,13 +229,13 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
 
       const draft = latestDraftRef.current
       const persistedId =
-        override?.persistedId ?? (isNewNote ? getServerId(localNoteId) ?? null : note?.id ?? noteId)
+        override?.persistedId ?? (isUnsavedNote ? null : note?.id ?? noteId)
       const currentDraftId = override?.id ?? persistedId ?? localNoteId
 
       setCurrentDraftId({
         id: currentDraftId,
         persistedId,
-        isUnsaved: !persistedId,
+        isUnsaved: isUnsavedNoteId(currentDraftId) || !persistedId,
         source: override?.source ?? (persistedId ? 'server' : 'local-draft'),
         ownerTabId: tabId,
       })
@@ -250,9 +253,8 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
     },
     [
       calculateWordCount,
-      getServerId,
       isActiveTab,
-      isNewNote,
+      isUnsavedNote,
       localNoteId,
       note?.id,
       note?.is_pinned,
@@ -263,6 +265,18 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
     ]
   )
 
+  // Clear stale persisted state before an unsaved note renders in the inspector.
+  useLayoutEffect(() => {
+    if (!isActiveTab || !isUnsavedNote) return
+
+    syncActiveDraftToStore({
+      id: localNoteId,
+      persistedId: null,
+      source: 'local-draft',
+      isPinned: undefined,
+    })
+  }, [isActiveTab, isUnsavedNote, localNoteId, syncActiveDraftToStore])
+
   // Beforeunload handler for safety
   useBeforeunloadSave()
 
@@ -271,20 +285,25 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
     async function checkLocalChanges() {
       try {
         const localNote = await getNoteLocally(localNoteId)
-        if (localNote && localNote.syncStatus === 'pending') {
+        const shouldHydrateLocalDraft =
+          !!localNote && (isTempNote || localNote.syncStatus === 'pending')
+
+        if (shouldHydrateLocalDraft && localNote) {
           hasRecoveredLocalDraftRef.current = true
           setTitle(localNote.title)
           setProblem(localNote.problem ?? '')
           setContent(localNote.content)
 
-          const syncQueue = getSyncQueue()
-          syncQueue.enqueue(localNoteId, {
-            title: localNote.title,
-            problem: localNote.problem,
-            content: localNote.content,
-            wordCount: localNote.wordCount,
-            tags: localNote.tags ?? extractTagsFromMarkdown(localNote.content),
-          })
+          if (localNote.syncStatus === 'pending') {
+            const syncQueue = getSyncQueue()
+            syncQueue.enqueue(localNoteId, {
+              title: localNote.title,
+              problem: localNote.problem,
+              content: localNote.content,
+              wordCount: localNote.wordCount,
+              tags: localNote.tags ?? extractTagsFromMarkdown(localNote.content),
+            })
+          }
         } else {
           hasRecoveredLocalDraftRef.current = false
         }
@@ -295,19 +314,19 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
       }
     }
 
-    if (!isNewNote) {
-      checkLocalChanges()
-    } else {
+    if (isNewNote) {
       hasRecoveredLocalDraftRef.current = true
       setIsRecovering(false)
+    } else {
+      checkLocalChanges()
     }
-  }, [isNewNote, localNoteId])
+  }, [isNewNote, isTempNote, localNoteId])
 
   // Initialize form from the server when no fresher local draft exists
   useEffect(() => {
     let isCancelled = false
 
-    if (note && !isNewNote && !isRecovering) {
+    if (note && !isUnsavedNote && !isRecovering) {
       void getNoteLocally(noteId).then((localNote) => {
         if (isCancelled) return
 
@@ -333,18 +352,18 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
     return () => {
       isCancelled = true
     }
-  }, [note, isNewNote, isRecovering, noteId, isActiveTab, hydrateFromServer, tabId, updateTabTitle])
+  }, [note, isUnsavedNote, isRecovering, noteId, isActiveTab, hydrateFromServer, tabId, updateTabTitle])
 
   // Keep the store aligned with whichever editor tab is currently active
   useEffect(() => {
     if (isRecovering || !isActiveTab) return
 
-    if (isNewNote) {
-      const serverId = getServerId(localNoteId) ?? null
+    if (isUnsavedNote) {
       syncActiveDraftToStore({
-        id: serverId ?? localNoteId,
-        persistedId: serverId,
+        id: localNoteId,
+        persistedId: null,
         source: 'local-draft',
+        isPinned: undefined,
       })
       return
     }
@@ -356,9 +375,8 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
       isPinned: note?.is_pinned,
     })
   }, [
-    getServerId,
     isActiveTab,
-    isNewNote,
+    isUnsavedNote,
     isRecovering,
     localNoteId,
     note?.id,
@@ -369,11 +387,10 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
 
   // Watch for server ID mapping and update URL/store without triggering a refetch
   useEffect(() => {
-    if (isNewNote && !hasUpdatedUrl.current) {
-      const checkServerId = setInterval(() => {
+    if (localNoteId.startsWith('temp_') && !hasUpdatedUrl.current) {
+      const syncServerId = () => {
         const serverId = getServerId(localNoteId)
         if (serverId && !hasUpdatedUrl.current) {
-          clearInterval(checkServerId)
           hasUpdatedUrl.current = true
 
           if (isActiveTab) {
@@ -384,18 +401,22 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
               source: 'server',
               ownerTabId: tabId,
             })
+
+            window.history.replaceState(null, '', `/notes/${serverId}`)
           }
 
-          window.history.replaceState(null, '', `/notes/${serverId}`)
           if (tabId) {
             updateTabNoteId(tabId, serverId)
           }
         }
-      }, 500)
+      }
+
+      syncServerId()
+      const checkServerId = setInterval(syncServerId, 500)
 
       return () => clearInterval(checkServerId)
     }
-  }, [isActiveTab, isNewNote, localNoteId, getServerId, setCurrentDraftId, tabId, updateTabNoteId])
+  }, [isActiveTab, localNoteId, getServerId, setCurrentDraftId, tabId, updateTabNoteId])
 
   // Cleanup store on unmount - only the owning editor tab may clear it
   useEffect(() => {
@@ -539,7 +560,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   }
 
   // Loading state
-  if (!isNewNote && (isLoading || isRecovering)) {
+  if ((!isUnsavedNote && isLoading) || (!isNewNote && isRecovering)) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -548,7 +569,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   }
 
   // Error state
-  if (!isNewNote && (error || (!isLoading && !note))) {
+  if (!isUnsavedNote && (error || (!isLoading && !note))) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2">
         <AlertCircle className="h-8 w-8 text-destructive" />
@@ -568,7 +589,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
           )}
         >
           {/* Actions - top right */}
-          {!isNewNote && note && (
+          {!isUnsavedNote && note && (
             <div className="absolute top-4 right-4 flex items-center gap-2">
               <Button
                 type="button"

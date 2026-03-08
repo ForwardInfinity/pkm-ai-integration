@@ -41,6 +41,12 @@ describe('AIToolsSection', () => {
           updated_at: '2024-01-01T00:00:00Z',
           deleted_at: null,
           embedding: null,
+          embedding_content_hash: null,
+          embedding_error: null,
+          embedding_model: null,
+          embedding_requested_at: null,
+          embedding_status: 'pending',
+          embedding_updated_at: null,
           fts: null,
         },
         'tab-1'
@@ -64,5 +70,32 @@ describe('AIToolsSection', () => {
       'Edited problem',
       'Freshly typed content'
     )
+  })
+
+  it('disables critique for temp ids', () => {
+    act(() => {
+      const store = useNoteEditorStore.getState()
+      store.setCurrentDraftId({
+        id: 'temp_abc',
+        persistedId: null,
+        isUnsaved: true,
+        source: 'local-draft',
+        ownerTabId: 'tab-1',
+      })
+      store.setDraftPatch(
+        {
+          title: 'Unsaved title',
+          problem: 'Unsaved problem',
+          content: 'Unsaved content',
+        },
+        'tab-1'
+      )
+    })
+
+    render(<AIToolsSection noteId="temp_abc" />)
+
+    expect(screen.getByRole('button', { name: 'Critique This Note' })).toBeDisabled()
+    expect(screen.getByText('Save your note to critique it with AI')).toBeInTheDocument()
+    expect(mockCritique).not.toHaveBeenCalled()
   })
 })

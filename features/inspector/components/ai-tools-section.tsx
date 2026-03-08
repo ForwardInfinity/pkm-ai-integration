@@ -1,10 +1,11 @@
 'use client'
 
 import { Sparkles, MessageSquareWarning, Loader2, AlertCircle, X, ChevronDown, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useCurrentDraft } from '@/stores'
 import { useCritiqueNote } from '@/features/ai/hooks/use-critique-note'
+import { isUnsavedNoteId } from '@/features/notes/utils/note-id'
 import { InspectorSection } from './inspector-section'
 import { cn } from '@/lib/utils'
 
@@ -56,7 +57,14 @@ export function AIToolsSection({ noteId, disabled = false }: AIToolsSectionProps
   const currentDraft = useCurrentDraft()
   const { isLoading, error, result, critique, dismiss } = useCritiqueNote()
 
-  const isDisabled = disabled || !noteId || noteId === 'new'
+  const isUnsaved = isUnsavedNoteId(noteId)
+  const isDisabled = disabled || isUnsaved
+
+  useEffect(() => {
+    if (isUnsaved) {
+      dismiss()
+    }
+  }, [dismiss, isUnsaved])
 
   const handleCritiqueNote = () => {
     if (!currentDraft) return
@@ -108,7 +116,7 @@ export function AIToolsSection({ noteId, disabled = false }: AIToolsSectionProps
 
         {isDisabled && !isLoading && !result && !error && (
           <p className="text-xs text-muted-foreground">
-            Save your note to enable AI tools
+            Save your note to critique it with AI
           </p>
         )}
 

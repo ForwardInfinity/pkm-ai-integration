@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { FileText, ExternalLink, Loader2, AlertCircle } from 'lucide-react'
 import { useTabsActions } from '@/stores'
+import { isUnsavedNoteId } from '@/features/notes/utils/note-id'
 import { InspectorSection } from './inspector-section'
 
 interface RelatedNotesSectionProps {
@@ -26,6 +27,7 @@ export function RelatedNotesSection({
   const router = useRouter()
   const { openTab } = useTabsActions()
   const hasRelatedNotes = relatedNotes.length > 0
+  const isUnsaved = isUnsavedNoteId(noteId)
 
   const handleRelatedNoteClick = (note: { id: string; title: string }) => {
     openTab(note.id, note.title || 'Untitled', true)
@@ -45,9 +47,9 @@ export function RelatedNotesSection({
       }
       defaultOpen={true}
     >
-      {!noteId || noteId === 'new' ? (
+      {isUnsaved ? (
         <p className="text-sm text-muted-foreground">
-          Save your note to find related content
+          Save your note to find related notes
         </p>
       ) : isError ? (
         <div className="flex items-center gap-2 text-sm text-destructive">

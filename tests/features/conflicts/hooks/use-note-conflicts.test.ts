@@ -57,6 +57,20 @@ describe('useNoteConflicts', () => {
     });
   });
 
+  describe('when noteId is a temp id', () => {
+    it('should not fetch conflicts', async () => {
+      const { result } = renderHook(() => useNoteConflicts('temp_abc'), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(mockGetNoteConflicts).not.toHaveBeenCalled();
+    });
+  });
+
   describe('when noteId is valid', () => {
     it('should fetch conflicts for the note', async () => {
       const mockConflicts = [

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { Link2, ExternalLink } from 'lucide-react'
 import { useTabsActions } from '@/stores'
+import { isUnsavedNoteId } from '@/features/notes/utils/note-id'
 import { InspectorSection } from './inspector-section'
 
 interface BacklinksSectionProps {
@@ -18,6 +19,7 @@ export function BacklinksSection({ noteId, backlinks = [] }: BacklinksSectionPro
   const router = useRouter()
   const { openTab } = useTabsActions()
   const hasBacklinks = backlinks.length > 0
+  const isUnsaved = isUnsavedNoteId(noteId)
 
   const handleBacklinkClick = (backlink: { id: string; title: string }) => {
     openTab(backlink.id, backlink.title || 'Untitled', true)
@@ -37,7 +39,7 @@ export function BacklinksSection({ noteId, backlinks = [] }: BacklinksSectionPro
       }
       defaultOpen={true}
     >
-      {!noteId || noteId === 'new' ? (
+      {isUnsaved ? (
         <p className="text-sm text-muted-foreground">
           Save your note to see backlinks
         </p>

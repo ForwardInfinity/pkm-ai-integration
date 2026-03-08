@@ -86,6 +86,20 @@ describe('useRelatedNotes', () => {
     })
   })
 
+  describe('when noteId is a temp id', () => {
+    it('should not fetch related notes', async () => {
+      const { result } = renderHook(() => useRelatedNotes('temp_abc'), {
+        wrapper: createWrapper(),
+      })
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false)
+      })
+
+      expect(mockRpc).not.toHaveBeenCalled()
+    })
+  })
+
   describe('when noteId is valid', () => {
     it('should fetch related notes with default parameters', async () => {
       const mockRelatedNotes = [

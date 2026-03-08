@@ -3,6 +3,7 @@
 import { create } from "zustand"
 import { useShallow } from "zustand/react/shallow"
 import type { Note } from "@/features/notes/types"
+import { getPersistedNoteId } from "@/features/notes/utils/note-id"
 
 export interface CurrentDraftNote {
   id: string | null
@@ -97,16 +98,20 @@ export const useNoteEditorStore = create<NoteEditorStore>((set) => ({
     }),
 
   setCurrentDraftId: ({ id, persistedId, isUnsaved, source, ownerTabId }) =>
-    set((state) => ({
-      ownerTabId: ownerTabId ?? state.ownerTabId,
-      currentDraft: {
-        ...(state.currentDraft ?? createEmptyDraft()),
-        id,
-        persistedId,
-        isUnsaved,
-        source,
-      },
-    })),
+    set((state) => {
+      const normalizedPersistedId = getPersistedNoteId(persistedId)
+
+      return {
+        ownerTabId: ownerTabId ?? state.ownerTabId,
+        currentDraft: {
+          ...(state.currentDraft ?? createEmptyDraft()),
+          id,
+          persistedId: normalizedPersistedId,
+          isUnsaved: isUnsaved || !normalizedPersistedId,
+          source,
+        },
+      }
+    }),
 
   reset: (ownerTabId) =>
     set((state) => {
@@ -125,7 +130,9 @@ export const useCurrentDraftId = () =>
   useNoteEditorStore((state) => state.currentDraft?.id ?? null)
 
 export const useCurrentPersistedNoteId = () =>
-  useNoteEditorStore((state) => state.currentDraft?.persistedId ?? null)
+  useNoteEditorStore((state) =>
+    getPersistedNoteId(state.currentDraft?.persistedId ?? null)
+  )
 
 // Backwards-compatible aliases while consumers migrate to draft terminology.
 export const useCurrentNote = useCurrentDraft

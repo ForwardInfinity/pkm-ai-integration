@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { Note } from '../types'
 import { noteKeys } from './use-notes'
+import { getPersistedNoteId } from '../utils/note-id'
 
 async function fetchNote(id: string): Promise<Note> {
   const supabase = createClient()
@@ -23,12 +24,16 @@ async function fetchNote(id: string): Promise<Note> {
 }
 
 /**
- * Hook to fetch a single note by ID
+ * Hook to fetch a single note by persisted server ID
  */
 export function useNote(id: string) {
+  const persistedNoteId = getPersistedNoteId(id)
+
   return useQuery({
-    queryKey: noteKeys.detail(id),
-    queryFn: () => fetchNote(id),
-    enabled: !!id && id !== 'new',
+    queryKey: persistedNoteId
+      ? noteKeys.detail(persistedNoteId)
+      : ['notes', 'detail', 'none'],
+    queryFn: () => fetchNote(persistedNoteId as string),
+    enabled: !!persistedNoteId,
   })
 }

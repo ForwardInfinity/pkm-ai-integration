@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useNoteConflicts, useDismissConflict } from '@/features/conflicts'
 import { useTabsActions } from '@/stores'
+import { isUnsavedNoteId } from '@/features/notes/utils/note-id'
 import { InspectorSection } from './inspector-section'
 
 interface ConflictsSectionProps {
@@ -18,6 +19,7 @@ export function ConflictsSection({ noteId }: ConflictsSectionProps) {
   const { openTab } = useTabsActions()
   const { data: conflicts = [], isLoading, isError } = useNoteConflicts(noteId)
   const dismissMutation = useDismissConflict()
+  const isUnsaved = isUnsavedNoteId(noteId)
 
   const hasConflicts = conflicts.length > 0
 
@@ -49,7 +51,7 @@ export function ConflictsSection({ noteId }: ConflictsSectionProps) {
       }
       defaultOpen={true}
     >
-      {!noteId || noteId === 'new' ? (
+      {isUnsaved ? (
         <p className="text-sm text-muted-foreground">
           Save your note to check for conflicts
         </p>

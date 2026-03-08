@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { BacklinkNote } from '../types'
+import { getPersistedNoteId } from '../utils/note-id'
 
 export const backlinkKeys = {
   all: ['backlinks'] as const,
@@ -28,10 +29,15 @@ async function fetchBacklinks(noteId: string): Promise<BacklinkNote[]> {
  * Returns notes that link to the specified note via wikilinks
  */
 export function useBacklinks(noteId: string | null) {
+  const persistedNoteId = getPersistedNoteId(noteId)
+
   return useQuery({
-    queryKey: noteId ? backlinkKeys.list(noteId) : ['backlinks', 'none'],
-    queryFn: () => (noteId ? fetchBacklinks(noteId) : Promise.resolve([])),
-    enabled: !!noteId && noteId !== 'new',
+    queryKey: persistedNoteId
+      ? backlinkKeys.list(persistedNoteId)
+      : ['backlinks', 'none'],
+    queryFn: () =>
+      persistedNoteId ? fetchBacklinks(persistedNoteId) : Promise.resolve([]),
+    enabled: !!persistedNoteId,
     staleTime: 30 * 1000, // Consider data fresh for 30 seconds
   })
 }

@@ -7,6 +7,11 @@ import { cancelTagQueries, invalidateTagQueries } from '@/features/notes/hooks/u
 import type { TrashNoteItem } from '../types'
 import type { NoteListItem } from '@/features/notes/types'
 import { restoreNotes } from '../actions/restore-notes'
+import { beginNoteAnalysisRefresh } from '@/lib/note-analysis-refresh'
+import {
+  invalidateAnalysisQueries,
+  invalidateBacklinkQueries,
+} from '@/lib/note-derived-queries'
 
 async function bulkRestoreNotes(ids: string[]): Promise<void> {
   const result = await restoreNotes(ids)
@@ -60,10 +65,14 @@ export function useBulkRestoreNotes() {
         queryClient.setQueryData(noteKeys.lists(), context.previousNotes)
       }
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, ids) => {
+      ids.forEach((id) => beginNoteAnalysisRefresh(id))
+
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: noteKeys.lists() }),
         invalidateTagQueries(queryClient),
+        invalidateAnalysisQueries(queryClient),
+        invalidateBacklinkQueries(queryClient),
       ])
     },
   })

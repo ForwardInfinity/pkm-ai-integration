@@ -8,6 +8,7 @@ import { cancelTagQueries, invalidateTagQueries } from './use-tags'
 import { trashKeys } from '@/features/trash/hooks'
 import type { TrashNoteItem } from '@/features/trash/types'
 import { getSyncQueue } from '@/lib/local-db/sync-queue'
+import { buildSoftDeletePayloadForNote } from '@/lib/local-db/flush-before-delete'
 
 // Update note params include the ID
 interface UpdateNoteParams extends UpdateNoteInput {
@@ -70,10 +71,14 @@ async function createNote(data: CreateNoteInput): Promise<Note> {
 async function deleteNote(id: string): Promise<void> {
   const supabase = createClient()
 
-  // Soft delete by setting deleted_at
+  // Flush any pending local changes into the soft-delete payload so that
+  // Undo (restore) returns the latest draft, not a stale server snapshot.
+  const deletedAt = new Date().toISOString()
+  const payload = await buildSoftDeletePayloadForNote(id, deletedAt)
+
   const { error } = await supabase
     .from('notes')
-    .update({ deleted_at: new Date().toISOString() })
+    .update(payload)
     .eq('id', id)
 
   if (error) {

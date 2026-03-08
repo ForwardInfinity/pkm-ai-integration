@@ -8,13 +8,32 @@ import { trashKeys } from '@/features/trash/hooks'
 import type { NoteListItem } from '../types'
 import type { TrashNoteItem } from '@/features/trash/types'
 import { getSyncQueue } from '@/lib/local-db/sync-queue'
+import { buildSoftDeletePayloadForNote } from '@/lib/local-db/flush-before-delete'
 
 async function bulkDeleteNotes(ids: string[]): Promise<void> {
   const supabase = createClient()
+  const deletedAt = new Date().toISOString()
 
+  // Step 1: Best-effort flush of pending local changes to the server.
+  // Uses allSettled so individual flush failures don't block the delete —
+  // worst case we fall back to the pre-fix behaviour (server keeps its
+  // stale content for that note).
+  await Promise.allSettled(
+    ids.map(async (id) => {
+      const payload = await buildSoftDeletePayloadForNote(id, deletedAt)
+      if (Object.keys(payload).length <= 1) return // only deleted_at → nothing to flush
+      const contentOnly = Object.fromEntries(
+        Object.entries(payload).filter(([key]) => key !== 'deleted_at')
+      )
+      await supabase.from('notes').update(contentOnly).eq('id', id)
+    })
+  )
+
+  // Step 2: Atomic bulk soft-delete (single SQL UPDATE … WHERE id IN …).
+  // This preserves the all-or-nothing semantics of the original code.
   const { error } = await supabase
     .from('notes')
-    .update({ deleted_at: new Date().toISOString() })
+    .update({ deleted_at: deletedAt })
     .in('id', ids)
 
   if (error) {

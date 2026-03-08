@@ -11,6 +11,7 @@ import { useNoteEditorActions, useTabsActions, useActiveTabId } from '@/stores'
 import {
   clearCurrentSessionTempDraftId,
   getCurrentSessionTempDraftId,
+  getIdMapping,
   getNoteLocally,
   setCurrentSessionTempDraftId,
 } from '@/lib/local-db/note-cache'
@@ -334,11 +335,23 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
           setCurrentSessionTempDraftId(localNote.id)
           await recoverLocalDraft(localNote)
         } else {
-          const freshTempNoteId = generatedTempNoteId
+          // The local draft may have already been synced to the server
+          // (its IndexedDB record moved from tempId → serverId) while the
+          // URL hadn't been updated yet.  Check the persisted id mapping
+          // before falling through to a blank draft.
           if (sessionTempDraftId) {
+            const mappedServerId = await getIdMapping(sessionTempDraftId)
+            if (mappedServerId && !isCancelled) {
+              clearCurrentSessionTempDraftId()
+              updateTabNoteId(tabId, mappedServerId)
+              // Full navigation so the component re-mounts with the correct noteId
+              window.location.replace(`/notes/${mappedServerId}`)
+              return
+            }
             clearCurrentSessionTempDraftId()
           }
 
+          const freshTempNoteId = generatedTempNoteId
           setResolvedTempNoteId(freshTempNoteId)
           setCurrentSessionTempDraftId(freshTempNoteId)
           hasRecoveredLocalDraftRef.current = false
@@ -368,7 +381,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
     return () => {
       isCancelled = true
     }
-  }, [generatedTempNoteId, isNewNote, recoverLocalDraft, sessionTempDraftId])
+  }, [generatedTempNoteId, isNewNote, recoverLocalDraft, sessionTempDraftId, tabId, updateTabNoteId])
 
   // Recover local drafts for persisted notes and temp note tabs.
   useEffect(() => {

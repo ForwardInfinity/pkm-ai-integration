@@ -8,6 +8,11 @@ import { cancelTagQueries, invalidateTagQueries } from '@/features/notes/hooks/u
 import type { TrashNoteItem } from '../types'
 import type { NoteListItem } from '@/features/notes/types'
 import { restoreNote as restoreNoteAction } from '../actions/restore-notes'
+import { beginNoteAnalysisRefresh } from '@/lib/note-analysis-refresh'
+import {
+  invalidateAnalysisQueries,
+  invalidateBacklinkQueries,
+} from '@/lib/note-derived-queries'
 
 async function restoreNote(id: string): Promise<void> {
   const result = await restoreNoteAction(id)
@@ -67,7 +72,7 @@ export function useRestoreNote() {
         queryClient.setQueryData(trashKeys.list(), context.previousTrash)
       }
     },
-    onSuccess: async (_, _id, context) => {
+    onSuccess: async (_, id, context) => {
       if (context?.restoredNote) {
         queryClient.setQueryData<NoteListItem[]>(noteKeys.lists(), (old) => {
           if (!old) return old
@@ -83,9 +88,14 @@ export function useRestoreNote() {
           return [restored, ...old]
         })
       }
+
+      beginNoteAnalysisRefresh(id)
+
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: noteKeys.lists() }),
         invalidateTagQueries(queryClient),
+        invalidateAnalysisQueries(queryClient),
+        invalidateBacklinkQueries(queryClient),
       ])
     },
   })

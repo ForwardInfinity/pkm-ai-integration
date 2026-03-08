@@ -8,6 +8,8 @@ import {
   saveIdMapping,
   getIdMapping,
   getAllIdMappings,
+  clearCurrentSessionTempDraftId,
+  getCurrentSessionTempDraftId,
 } from './note-cache'
 import { getBrowserQueryClient } from '@/lib/query-client'
 import { noteKeys } from '@/features/notes/hooks/use-notes'
@@ -227,6 +229,77 @@ class SyncQueue {
     }
   }
 
+  async removeNote(noteId: string): Promise<void> {
+    await this.removeNotes([noteId])
+  }
+
+  async removeNotes(noteIds: string[]): Promise<void> {
+    if (noteIds.length === 0) return
+
+    await this.initialize()
+    const db = await getDB()
+    const relatedNoteIds = new Set(noteIds)
+    const tempIdsToRemove = new Set<string>()
+
+    for (const noteId of noteIds) {
+      if (noteId.startsWith('temp_')) {
+        tempIdsToRemove.add(noteId)
+
+        const mappedServerId =
+          this.tempIdToServerIdMap.get(noteId) ?? await getIdMapping(noteId)
+
+        if (mappedServerId) {
+          relatedNoteIds.add(mappedServerId)
+        }
+
+        continue
+      }
+
+      const persistedMappings = await db.getAllFromIndex(
+        'idMappings',
+        'by-server-id',
+        noteId
+      )
+
+      for (const mapping of persistedMappings) {
+        tempIdsToRemove.add(mapping.tempId)
+        relatedNoteIds.add(mapping.tempId)
+      }
+
+      for (const [tempId, serverId] of this.tempIdToServerIdMap.entries()) {
+        if (serverId === noteId) {
+          tempIdsToRemove.add(tempId)
+          relatedNoteIds.add(tempId)
+        }
+      }
+    }
+
+    const queueItems = await db.getAll('syncQueue')
+
+    await Promise.all(
+      queueItems
+        .filter((item) => item.id !== undefined && relatedNoteIds.has(item.noteId))
+        .map((item) => db.delete('syncQueue', item.id as number))
+    )
+
+    await Promise.all(
+      Array.from(relatedNoteIds, (noteId) => db.delete('notes', noteId))
+    )
+
+    await Promise.all(
+      Array.from(tempIdsToRemove, async (tempId) => {
+        this.pendingCreates.delete(tempId)
+        this.tempIdToServerIdMap.delete(tempId)
+        await db.delete('idMappings', tempId)
+      })
+    )
+
+    const currentSessionTempDraftId = getCurrentSessionTempDraftId()
+    if (currentSessionTempDraftId && relatedNoteIds.has(currentSessionTempDraftId)) {
+      clearCurrentSessionTempDraftId()
+    }
+  }
+
   private async processQueueInternal(): Promise<void> {
     if (this.isProcessing) return
     this.isProcessing = true
@@ -237,14 +310,21 @@ class SyncQueue {
       const items = await db.getAll('syncQueue')
 
       for (const item of items) {
+        const currentItem =
+          item.id !== undefined ? await db.get('syncQueue', item.id) : item
+
+        if (!currentItem) {
+          continue
+        }
+
         // Skip items that have already permanently failed
-        if (item.lastError) continue
+        if (currentItem.lastError) continue
 
         try {
-          await this.processItem(item)
+          await this.processItem(currentItem)
           // Remove from queue on success
-          if (item.id !== undefined) {
-            await db.delete('syncQueue', item.id)
+          if (currentItem.id !== undefined) {
+            await db.delete('syncQueue', currentItem.id)
           }
         } catch (error) {
           // Handle both Error instances and Supabase error objects ({ message: string })
@@ -259,35 +339,53 @@ class SyncQueue {
 
           // Special handling for unmapped temp IDs - time-boxed deferral
           if (errorMessage === 'TEMP_ID_NOT_MAPPED') {
-            const ageMs = Date.now() - item.timestamp
+            const persistedItem =
+              currentItem.id !== undefined
+                ? await db.get('syncQueue', currentItem.id)
+                : currentItem
+
+            if (!persistedItem) {
+              continue
+            }
+
+            const ageMs = Date.now() - persistedItem.timestamp
 
             if (ageMs > TEMP_ID_MAPPING_TIMEOUT_MS) {
               // Mapping never arrived - mark as permanent failure
-              console.error('TEMP_ID_NOT_MAPPED timeout for:', item.noteId, `(${Math.round(ageMs / 1000)}s old)`)
-              await markNoteError(item.noteId)
+              console.error('TEMP_ID_NOT_MAPPED timeout for:', persistedItem.noteId, `(${Math.round(ageMs / 1000)}s old)`)
+              await markNoteError(persistedItem.noteId)
               await db.put('syncQueue', {
-                ...item,
+                ...persistedItem,
                 lastError: 'TEMP_ID_NOT_MAPPED_TIMEOUT',
               })
             } else {
               // Still within timeout window - keep for later retry
-              console.debug('Deferring sync for unmapped temp ID:', item.noteId, `(${Math.round(ageMs / 1000)}s old)`)
+              console.debug('Deferring sync for unmapped temp ID:', persistedItem.noteId, `(${Math.round(ageMs / 1000)}s old)`)
             }
             continue
           }
 
-          console.error('Sync error for note:', item.noteId, error)
+          const persistedItem =
+            currentItem.id !== undefined
+              ? await db.get('syncQueue', currentItem.id)
+              : currentItem
+
+          if (!persistedItem) {
+            continue
+          }
+
+          console.error('Sync error for note:', persistedItem.noteId, error)
           // Increment retry count
-          if (item.retryCount < MAX_RETRIES) {
+          if (persistedItem.retryCount < MAX_RETRIES) {
             await db.put('syncQueue', {
-              ...item,
-              retryCount: item.retryCount + 1,
+              ...persistedItem,
+              retryCount: persistedItem.retryCount + 1,
             })
           } else {
             // Mark note and queue item as error (keep for potential recovery)
-            await markNoteError(item.noteId)
+            await markNoteError(persistedItem.noteId)
             await db.put('syncQueue', {
-              ...item,
+              ...persistedItem,
               lastError: errorMessage,
             })
           }
@@ -440,10 +538,17 @@ class SyncQueue {
         .from('notes')
         .update(updateData)
         .eq('id', serverNoteId)
+        .is('deleted_at', null)
         .select()
-        .single()
+        .maybeSingle()
 
       if (error) throw error
+
+      if (!updated) {
+        console.debug('Skipping sync for trashed or missing note:', serverNoteId)
+        await this.removeNotes([serverNoteId])
+        return
+      }
 
       await markNoteSynced(serverNoteId, updated.updated_at)
 

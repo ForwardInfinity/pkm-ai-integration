@@ -14,6 +14,7 @@ let mockNoteData: {
   content: string
   embedding_content_hash: string | null
   embedding_status: string
+  deleted_at?: string | null
 } | null = null
 let mockNoteUpdates: Record<string, unknown>[] = []
 
@@ -35,12 +36,19 @@ const createMockSupabaseClient = (overrides: {
     update: vi.fn(() => ({
       eq: vi.fn(() => ({
         eq: vi.fn(() => ({
-          select: vi.fn(() => ({
-            single: vi.fn(() =>
-              Promise.resolve(
-                overrides.updateResult ?? { data: { id: 'test' }, error: null }
-              )
-            ),
+          is: vi.fn(() => ({
+            select: vi.fn(() => ({
+              single: vi.fn(() =>
+                Promise.resolve(
+                  overrides.updateResult ?? { data: { id: 'test' }, error: null }
+                )
+              ),
+              maybeSingle: vi.fn(() =>
+                Promise.resolve(
+                  overrides.updateResult ?? { data: { id: 'test' }, error: null }
+                )
+              ),
+            })),
           })),
         })),
       })),
@@ -73,21 +81,23 @@ const createIntegrationMockSupabaseClient = () => {
             return {
               eq: vi.fn(() => ({
                 eq: vi.fn(() => ({
-                  select: vi.fn(() => ({
-                    single: vi.fn(() => {
-                      mockSupabaseCallLog.push({
-                        method: 'notes.update',
-                        args: [updateData],
-                      })
-                      return Promise.resolve({ data: { id: mockNoteData?.id }, error: null })
-                    }),
-                    maybeSingle: vi.fn(() => {
-                      mockSupabaseCallLog.push({
-                        method: 'notes.update.maybeSingle',
-                        args: [updateData],
-                      })
-                      return Promise.resolve({ data: { id: mockNoteData?.id }, error: null })
-                    }),
+                  is: vi.fn(() => ({
+                    select: vi.fn(() => ({
+                      single: vi.fn(() => {
+                        mockSupabaseCallLog.push({
+                          method: 'notes.update',
+                          args: [updateData],
+                        })
+                        return Promise.resolve({ data: { id: mockNoteData?.id }, error: null })
+                      }),
+                      maybeSingle: vi.fn(() => {
+                        mockSupabaseCallLog.push({
+                          method: 'notes.update.maybeSingle',
+                          args: [updateData],
+                        })
+                        return Promise.resolve({ data: { id: mockNoteData?.id }, error: null })
+                      }),
+                    })),
                   })),
                 })),
               })),
@@ -413,6 +423,49 @@ describe('generateNoteEmbedding integration', () => {
     })
   })
 
+  describe('trashed note handling', () => {
+    it('should skip trashed notes before generating embeddings', async () => {
+      const noteContent = {
+        title: 'Trashed Note',
+        problem: null,
+        content: 'Content that should not be embedded',
+      }
+      const expectedHash = hashNoteForEmbedding(noteContent)
+
+      mockNoteData = {
+        id: 'note-trashed',
+        user_id: 'user-456',
+        ...noteContent,
+        embedding_content_hash: expectedHash,
+        embedding_status: 'pending',
+        deleted_at: '2026-03-08T00:00:00Z',
+      }
+
+      vi.doMock('@supabase/supabase-js', () => ({
+        createClient: vi.fn(() => createIntegrationMockSupabaseClient()),
+      }))
+
+      const { embedMany } = await import('ai')
+      const { generateNoteEmbedding } = await import(
+        '@/lib/inngest/functions/generate-embedding'
+      )
+
+      const handler = generateNoteEmbedding.handler as (ctx: {
+        event: { data: { noteId: string; expectedHash: string } }
+        step: { run: typeof mockStepRun }
+      }) => Promise<{ skipped: boolean; reason: string }>
+
+      const result = await handler({
+        event: { data: { noteId: 'note-trashed', expectedHash } },
+        step: { run: mockStepRun },
+      })
+
+      expect(result.skipped).toBe(true)
+      expect(result.reason).toContain('trashed')
+      expect(embedMany).not.toHaveBeenCalled()
+    })
+  })
+
   describe('empty content handling', () => {
     it('should handle notes with empty content gracefully', async () => {
       const emptyNote = {
@@ -566,19 +619,21 @@ describe('generateNoteEmbedding integration', () => {
                   return {
                     eq: vi.fn(() => ({
                       eq: vi.fn(() => ({
-                        select: vi.fn(() => ({
-                          single: vi.fn(() => {
-                            // First update (mark-processing) succeeds
-                            if (updateCount === 1) {
-                              return Promise.resolve({ data: { id: 'note-zero-row' }, error: null })
-                            }
-                            // Subsequent updates return null (0 rows - hash changed)
-                            return Promise.resolve({ data: null, error: null })
-                          }),
-                          maybeSingle: vi.fn(() => {
-                            // For store-aggregate-embedding with maybeSingle
-                            return Promise.resolve({ data: null, error: null })
-                          }),
+                        is: vi.fn(() => ({
+                          select: vi.fn(() => ({
+                            single: vi.fn(() => {
+                              // First update (mark-processing) succeeds
+                              if (updateCount === 1) {
+                                return Promise.resolve({ data: { id: 'note-zero-row' }, error: null })
+                              }
+                              // Subsequent updates return null (0 rows - hash changed)
+                              return Promise.resolve({ data: null, error: null })
+                            }),
+                            maybeSingle: vi.fn(() => {
+                              // For store-aggregate-embedding with maybeSingle
+                              return Promise.resolve({ data: null, error: null })
+                            }),
+                          })),
                         })),
                       })),
                     })),

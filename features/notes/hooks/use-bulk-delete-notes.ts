@@ -6,6 +6,7 @@ import { noteKeys } from './use-notes'
 import { trashKeys } from '@/features/trash/hooks'
 import type { NoteListItem } from '../types'
 import type { TrashNoteItem } from '@/features/trash/types'
+import { getSyncQueue } from '@/lib/local-db/sync-queue'
 
 async function bulkDeleteNotes(ids: string[]): Promise<void> {
   const supabase = createClient()
@@ -17,6 +18,12 @@ async function bulkDeleteNotes(ids: string[]): Promise<void> {
 
   if (error) {
     throw new Error(error.message)
+  }
+
+  try {
+    await getSyncQueue().removeNotes(ids)
+  } catch (cleanupError) {
+    console.error('[BulkDeleteNotes] Failed to clean local state:', cleanupError)
   }
 }
 

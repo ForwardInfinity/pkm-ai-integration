@@ -78,13 +78,17 @@ export const detectNoteConflicts = inngest.createFunction(
       const { data: note, error } = await supabase
         .from('notes')
         .select(
-          'id, user_id, title, problem, content, embedding_content_hash, embedding_status'
+          'id, user_id, title, problem, content, embedding_content_hash, embedding_status, deleted_at'
         )
         .eq('id', noteId)
         .single()
 
       if (error || !note) {
         throw new NonRetriableError(`Note not found: ${noteId}`)
+      }
+
+      if (note.deleted_at) {
+        return { skipped: true, reason: 'Note is trashed', note: null }
       }
 
       // Verify embedding is completed and hash matches
@@ -151,8 +155,9 @@ export const detectNoteConflicts = inngest.createFunction(
 
         const { data, error } = await supabase
           .from('notes')
-          .select('id, title, problem, content, embedding_content_hash')
+          .select('id, title, problem, content, embedding_content_hash, deleted_at')
           .in('id', candidateIds)
+          .is('deleted_at', null)
 
         if (error) {
           console.error(
@@ -242,6 +247,56 @@ export const detectNoteConflicts = inngest.createFunction(
 
       for (const pair of pairsToJudge) {
         try {
+          const verifyPairStillEligible = async () => {
+            const { data: activeNotes, error: activeNotesError } = await supabase
+              .from('notes')
+              .select('id, embedding_content_hash')
+              .in('id', [note.id, pair.candidate.id])
+              .is('deleted_at', null)
+
+            if (activeNotesError) {
+              throw new Error(`Failed to verify note activity: ${activeNotesError.message}`)
+            }
+
+            if ((activeNotes || []).length < 2) {
+              return { eligible: false, reason: 'Note trashed during processing' }
+            }
+
+            const activeNoteMap = new Map(
+              (activeNotes || []).map((activeNote) => [activeNote.id, activeNote])
+            )
+            const sourceNote = activeNoteMap.get(note.id)
+            const candidateNote = activeNoteMap.get(pair.candidate.id)
+
+            if (
+              !sourceNote?.embedding_content_hash ||
+              !candidateNote?.embedding_content_hash
+            ) {
+              return { eligible: false, reason: 'Embedding hash missing during processing' }
+            }
+
+            const currentPairHash = computePairHash(
+              sourceNote.embedding_content_hash,
+              candidateNote.embedding_content_hash,
+              note.id,
+              pair.candidate.id
+            )
+
+            if (currentPairHash !== pair.pairHash) {
+              return { eligible: false, reason: 'Pair content changed during processing' }
+            }
+
+            return { eligible: true as const, reason: null }
+          }
+
+          const initialEligibility = await verifyPairStillEligible()
+          if (!initialEligibility.eligible) {
+            console.debug(
+              `[Conflicts] Skipping pair (${pair.noteAId}, ${pair.noteBId}): ${initialEligibility.reason}`
+            )
+            continue
+          }
+
           // Prepare note data for judgment
           const noteAData: NoteForJudgment =
             note.id < pair.candidate.id
@@ -302,6 +357,27 @@ export const detectNoteConflicts = inngest.createFunction(
             continue
           }
 
+          const postInsertEligibility = await verifyPairStillEligible()
+          if (!postInsertEligibility.eligible) {
+            const { error: cleanupError } = await supabase
+              .from('conflict_judgments')
+              .delete()
+              .eq('pair_content_hash', pair.pairHash)
+              .eq('note_a_id', pair.noteAId)
+              .eq('note_b_id', pair.noteBId)
+
+            if (cleanupError) {
+              console.warn(
+                `[Conflicts] Failed to clean stale judgment for pair ${pair.pairHash}: ${cleanupError.message}`
+              )
+            }
+
+            console.debug(
+              `[Conflicts] Removed stale judgment for pair (${pair.noteAId}, ${pair.noteBId}): ${postInsertEligibility.reason}`
+            )
+            continue
+          }
+
           processed.judged++
 
           // Create conflict if result is tension/contradiction with high confidence
@@ -324,14 +400,33 @@ export const detectNoteConflicts = inngest.createFunction(
                 { onConflict: 'note_a_id,note_b_id' }
               )
 
-            if (conflictError) {
-              console.error(
-                `[Conflicts] Failed to create conflict: ${conflictError.message}`
-              )
-            } else {
-              processed.conflicts++
+              if (conflictError) {
+                console.error(
+                  `[Conflicts] Failed to create conflict: ${conflictError.message}`
+                )
+              } else {
+                const postConflictEligibility = await verifyPairStillEligible()
+                if (!postConflictEligibility.eligible) {
+                  const { error: cleanupError } = await supabase
+                    .from('conflicts')
+                    .delete()
+                    .eq('note_a_id', pair.noteAId)
+                    .eq('note_b_id', pair.noteBId)
+
+                  if (cleanupError) {
+                    console.warn(
+                      `[Conflicts] Failed to clean stale conflict for pair (${pair.noteAId}, ${pair.noteBId}): ${cleanupError.message}`
+                    )
+                  } else {
+                    console.debug(
+                      `[Conflicts] Removed stale conflict for pair (${pair.noteAId}, ${pair.noteBId}): ${postConflictEligibility.reason}`
+                    )
+                  }
+                } else {
+                  processed.conflicts++
+                }
+              }
             }
-          }
         } catch (error) {
           if (error instanceof NoObjectGeneratedError) {
             // LLM failed to generate valid structured output - skip this pair

@@ -6,6 +6,7 @@ import type { Note, UpdateNoteInput, CreateNoteInput, NoteListItem } from '../ty
 import { noteKeys } from './use-notes'
 import { trashKeys } from '@/features/trash/hooks'
 import type { TrashNoteItem } from '@/features/trash/types'
+import { getSyncQueue } from '@/lib/local-db/sync-queue'
 
 // Update note params include the ID
 interface UpdateNoteParams extends UpdateNoteInput {
@@ -72,6 +73,12 @@ async function deleteNote(id: string): Promise<void> {
 
   if (error) {
     throw new Error(error.message)
+  }
+
+  try {
+    await getSyncQueue().removeNote(id)
+  } catch (cleanupError) {
+    console.error('[DeleteNote] Failed to clean local state:', cleanupError)
   }
 }
 

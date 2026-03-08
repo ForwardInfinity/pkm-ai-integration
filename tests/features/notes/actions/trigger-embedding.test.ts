@@ -12,9 +12,23 @@ vi.mock('@/lib/inngest/client', () => ({
 // Mock Supabase client
 const mockUpdate = vi.fn()
 
+function buildUpdateResult(updateResult?: {
+  data?: unknown
+  error: unknown
+}) {
+  if (!updateResult) {
+    return { data: { id: 'updated-note' }, error: null }
+  }
+
+  return {
+    data: updateResult.data ?? (updateResult.error ? null : { id: 'updated-note' }),
+    error: updateResult.error,
+  }
+}
+
 const createMockSupabaseClient = (options: {
   selectResult?: { data: unknown; error: unknown }
-  updateResult?: { error: unknown }
+  updateResult?: { data?: unknown; error: unknown }
 }) => ({
   from: vi.fn(() => ({
     select: vi.fn(() => ({
@@ -27,9 +41,15 @@ const createMockSupabaseClient = (options: {
     update: vi.fn((updateData: Record<string, unknown>) => {
       mockUpdate(updateData)
       return {
-        eq: vi.fn(() =>
-          Promise.resolve(options.updateResult ?? { error: null })
-        ),
+        eq: vi.fn(() => ({
+          is: vi.fn(() => ({
+            select: vi.fn(() => ({
+              maybeSingle: vi.fn(() =>
+                Promise.resolve(buildUpdateResult(options.updateResult))
+              ),
+            })),
+          })),
+        })),
       }
     }),
   })),
@@ -201,6 +221,44 @@ describe('triggerEmbeddingGeneration', () => {
       expect(result.success).toBe(true)
       expect(result.skipped).toBe(true)
       expect(result.reason).toContain('up-to-date')
+      expect(mockSend).not.toHaveBeenCalled()
+    })
+
+    it('should skip trashed notes', async () => {
+      const note = {
+        id: 'test-note-trashed',
+        title: 'Test Title',
+        problem: null,
+        content: 'Test Content',
+      }
+
+      vi.doMock('@/lib/supabase/server', () => ({
+        createClient: vi.fn(() =>
+          Promise.resolve(
+            createMockSupabaseClient({
+              selectResult: {
+                data: {
+                  deleted_at: '2026-03-08T00:00:00Z',
+                  embedding_status: 'pending',
+                  embedding_content_hash: null,
+                },
+                error: null,
+              },
+            })
+          )
+        ),
+      }))
+
+      const { triggerEmbeddingGeneration } = await import(
+        '@/features/notes/actions/trigger-embedding'
+      )
+
+      const result = await triggerEmbeddingGeneration(note)
+
+      expect(result.success).toBe(true)
+      expect(result.skipped).toBe(true)
+      expect(result.reason).toContain('trashed')
+      expect(mockUpdate).not.toHaveBeenCalled()
       expect(mockSend).not.toHaveBeenCalled()
     })
   })

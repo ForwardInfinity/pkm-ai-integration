@@ -24,7 +24,24 @@ const mockSupabaseChain = {
   insert: vi.fn().mockReturnThis(),
   update: vi.fn().mockReturnThis(),
   eq: vi.fn().mockReturnThis(),
+  is: vi.fn().mockReturnThis(),
   single: vi.fn(),
+  maybeSingle: vi.fn(),
+}
+
+const mockTriggerEmbeddingGeneration = vi.fn()
+const mockSyncNoteLinks = vi.fn()
+let queueItemsState: SyncQueueItem[] = []
+
+function cloneQueueItem(item: SyncQueueItem): SyncQueueItem {
+  return {
+    ...item,
+    data: { ...item.data },
+  }
+}
+
+function setQueueItems(items: SyncQueueItem[]) {
+  queueItemsState = items.map(cloneQueueItem)
 }
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -48,11 +65,12 @@ vi.mock('@/lib/query-client', () => ({
 }))
 
 vi.mock('@/features/notes/actions/trigger-embedding', () => ({
-  triggerEmbeddingGeneration: vi.fn().mockResolvedValue({ success: true }),
+  triggerEmbeddingGeneration: (...args: unknown[]) =>
+    mockTriggerEmbeddingGeneration(...args),
 }))
 
 vi.mock('@/features/notes/actions/sync-note-links', () => ({
-  syncNoteLinks: vi.fn().mockResolvedValue({ success: true }),
+  syncNoteLinks: (...args: unknown[]) => mockSyncNoteLinks(...args),
 }))
 
 // Mock note-cache
@@ -64,6 +82,12 @@ vi.mock('@/lib/local-db/note-cache', () => ({
   saveIdMapping: vi.fn(),
   getIdMapping: vi.fn(),
   getAllIdMappings: vi.fn().mockResolvedValue(new Map()),
+  getCurrentSessionTempDraftId: vi.fn(() =>
+    window.sessionStorage.getItem('refinery-current-session-temp-draft')
+  ),
+  clearCurrentSessionTempDraftId: vi.fn(() =>
+    window.sessionStorage.removeItem('refinery-current-session-temp-draft')
+  ),
 }))
 
 describe('sync-queue', () => {
@@ -73,18 +97,69 @@ describe('sync-queue', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     vi.clearAllTimers()
-    
-    // Reset mocks
-    mockDB.get.mockResolvedValue(undefined)
-    mockDB.put.mockResolvedValue(undefined)
-    mockDB.add.mockResolvedValue(1)
-    mockDB.delete.mockResolvedValue(undefined)
-    mockDB.getAll.mockResolvedValue([])
+
+    // Reset mock-backed queue state
+    setQueueItems([])
+    mockDB.get.mockImplementation((storeName: string, key: string | number) => {
+      if (storeName === 'syncQueue' && typeof key === 'number') {
+        const item = queueItemsState.find((queueItem) => queueItem.id === key)
+        return Promise.resolve(item ? cloneQueueItem(item) : undefined)
+      }
+
+      return Promise.resolve(undefined)
+    })
+    mockDB.put.mockImplementation((storeName: string, value: SyncQueueItem) => {
+      if (storeName === 'syncQueue') {
+        const existingIndex = queueItemsState.findIndex((item) => item.id === value.id)
+        if (existingIndex >= 0) {
+          queueItemsState[existingIndex] = cloneQueueItem(value)
+        } else {
+          queueItemsState.push(cloneQueueItem(value))
+        }
+      }
+
+      return Promise.resolve(undefined)
+    })
+    mockDB.add.mockImplementation((storeName: string, value: SyncQueueItem) => {
+      if (storeName === 'syncQueue') {
+        const nextId =
+          queueItemsState.reduce((maxId, item) => Math.max(maxId, item.id ?? 0), 0) + 1
+        queueItemsState.push(cloneQueueItem({ ...value, id: nextId }))
+        return Promise.resolve(nextId)
+      }
+
+      return Promise.resolve(1)
+    })
+    mockDB.delete.mockImplementation((storeName: string, key: string | number) => {
+      if (storeName === 'syncQueue' && typeof key === 'number') {
+        queueItemsState = queueItemsState.filter((item) => item.id !== key)
+      }
+
+      return Promise.resolve(undefined)
+    })
+    mockDB.getAll.mockImplementation((storeName: string) => {
+      if (storeName === 'syncQueue') {
+        return Promise.resolve(queueItemsState.map(cloneQueueItem))
+      }
+
+      return Promise.resolve([])
+    })
     mockDB.getAllFromIndex.mockResolvedValue([])
+    mockSupabaseChain.single.mockResolvedValue({
+      data: { id: 'server-uuid', updated_at: '2024-01-01T00:00:00Z' },
+      error: null,
+    })
+    mockSupabaseChain.maybeSingle.mockResolvedValue({
+      data: { id: 'server-uuid', updated_at: '2024-01-01T00:00:00Z' },
+      error: null,
+    })
+    mockTriggerEmbeddingGeneration.mockResolvedValue({ success: true })
+    mockSyncNoteLinks.mockResolvedValue({ success: true })
+    window.sessionStorage.clear()
 
     // Reset module to get fresh singleton
     vi.resetModules()
-    
+
     // Re-import after reset
     const syncQueueModule = await import('@/lib/local-db/sync-queue')
     getSyncQueue = syncQueueModule.getSyncQueue
@@ -169,7 +244,7 @@ describe('sync-queue', () => {
         retryCount: 0,
       }
 
-      mockDB.getAll.mockResolvedValue([queueItem])
+      setQueueItems([queueItem])
       ;(getNoteLocally as ReturnType<typeof vi.fn>).mockResolvedValue(localNote)
       
       mockSupabaseChain.single.mockResolvedValue({
@@ -194,8 +269,12 @@ describe('sync-queue', () => {
         retryCount: 0,
       }
 
-      mockDB.getAll.mockResolvedValue([queueItem])
+      setQueueItems([queueItem])
       mockSupabaseChain.single.mockResolvedValue({
+        data: { id: 'server-uuid-123', title: 'Updated Title', updated_at: '2024-01-01T00:00:00Z' },
+        error: null,
+      })
+      mockSupabaseChain.maybeSingle.mockResolvedValue({
         data: { id: 'server-uuid-123', title: 'Updated Title', updated_at: '2024-01-01T00:00:00Z' },
         error: null,
       })
@@ -217,8 +296,8 @@ describe('sync-queue', () => {
         retryCount: 0,
       }
 
-      mockDB.getAll.mockResolvedValue([queueItem])
-      mockSupabaseChain.single.mockResolvedValue({
+      setQueueItems([queueItem])
+      mockSupabaseChain.maybeSingle.mockResolvedValue({
         data: null,
         error: { message: 'Server error' },
       })
@@ -243,8 +322,8 @@ describe('sync-queue', () => {
         retryCount: 3, // Already at max
       }
 
-      mockDB.getAll.mockResolvedValue([queueItem])
-      mockSupabaseChain.single.mockResolvedValue({
+      setQueueItems([queueItem])
+      mockSupabaseChain.maybeSingle.mockResolvedValue({
         data: null,
         error: { message: 'Server error' },
       })
@@ -260,6 +339,58 @@ describe('sync-queue', () => {
       )
       expect(putCall).toBeDefined()
       expect(putCall![1].lastError).toBe('Server error')
+    })
+
+    it('should remove queued update and skip side effects for trashed notes', async () => {
+      const queueItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'server-uuid-123',
+        operation: 'update',
+        data: { content: 'Updated content' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+
+      setQueueItems([queueItem])
+      mockSupabaseChain.maybeSingle.mockResolvedValue({
+        data: null,
+        error: null,
+      })
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      expect(mockTriggerEmbeddingGeneration).not.toHaveBeenCalled()
+      expect(mockSyncNoteLinks).not.toHaveBeenCalled()
+      expect(mockDB.delete).toHaveBeenCalledWith('syncQueue', 1)
+    })
+
+    it('should not recreate a queue item removed while processing', async () => {
+      const queueItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'temp_removed',
+        operation: 'update',
+        data: { title: 'Stale draft' },
+        timestamp: Date.now() - 6 * 60 * 1000,
+        retryCount: 0,
+      }
+
+      setQueueItems([queueItem])
+
+      const { getIdMapping } = await import('@/lib/local-db/note-cache')
+      ;(getIdMapping as ReturnType<typeof vi.fn>).mockResolvedValue(undefined)
+
+      mockDB.get
+        .mockResolvedValueOnce(cloneQueueItem(queueItem))
+        .mockResolvedValueOnce(undefined)
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.processQueue()
+
+      expect(mockDB.put).not.toHaveBeenCalledWith(
+        'syncQueue',
+        expect.objectContaining({ noteId: 'temp_removed' })
+      )
     })
   })
 
@@ -284,7 +415,7 @@ describe('sync-queue', () => {
         retryCount: 0,
       }
 
-      mockDB.getAll.mockResolvedValue([queueItem])
+      setQueueItems([queueItem])
       mockSupabaseChain.single.mockResolvedValue({
         data: { id: 'server-uuid-123', title: 'Updated Title', updated_at: '2024-01-01T00:00:00Z' },
         error: null,
@@ -345,7 +476,7 @@ describe('sync-queue', () => {
         retryCount: 0,
       }
 
-      mockDB.getAll.mockResolvedValue([queueItem])
+      setQueueItems([queueItem])
 
       const syncQueue = getSyncQueue()
       await syncQueue.processQueue()
@@ -373,8 +504,8 @@ describe('sync-queue', () => {
         retryCount: 0,
       }
 
-      mockDB.getAll.mockResolvedValue([queueItem])
-      mockSupabaseChain.single.mockResolvedValue({
+      setQueueItems([queueItem])
+      mockSupabaseChain.maybeSingle.mockResolvedValue({
         data: {
           id: 'server-uuid-mapped',
           title: 'Updated Title',
@@ -404,7 +535,7 @@ describe('sync-queue', () => {
         lastError: 'Previous server error',
       }
 
-      mockDB.getAll.mockResolvedValue([queueItem])
+      setQueueItems([queueItem])
 
       const syncQueue = getSyncQueue()
       await syncQueue.processQueue()
@@ -440,7 +571,7 @@ describe('sync-queue', () => {
         retryCount: 0,
       }
 
-      mockDB.getAll.mockResolvedValue([queueItem])
+      setQueueItems([queueItem])
       ;(getNoteLocally as ReturnType<typeof vi.fn>).mockResolvedValue(localNote)
 
       mockSupabaseChain.single.mockResolvedValue({
@@ -453,6 +584,63 @@ describe('sync-queue', () => {
 
       // Should persist the mapping to IndexedDB
       expect(saveIdMapping).toHaveBeenCalledWith('temp_new', 'server-uuid-created')
+    })
+
+    it('should remove queue items, local drafts, and temp mappings for deleted notes', async () => {
+      const { getAllIdMappings } = await import('@/lib/local-db/note-cache')
+      ;(getAllIdMappings as ReturnType<typeof vi.fn>).mockResolvedValue(
+        new Map([['temp_123', 'server-uuid-123']])
+      )
+
+      window.sessionStorage.setItem('refinery-current-session-temp-draft', 'temp_123')
+
+      const queuedServerItem: SyncQueueItem = {
+        id: 1,
+        noteId: 'server-uuid-123',
+        operation: 'update',
+        data: { title: 'Updated title' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+      const queuedTempItem: SyncQueueItem = {
+        id: 2,
+        noteId: 'temp_123',
+        operation: 'update',
+        data: { content: 'Draft content' },
+        timestamp: Date.now(),
+        retryCount: 0,
+      }
+
+      setQueueItems([queuedServerItem, queuedTempItem])
+      mockDB.getAllFromIndex.mockImplementation(
+        (storeName: string, indexName: string, value: string) => {
+          if (
+            storeName === 'idMappings' &&
+            indexName === 'by-server-id' &&
+            value === 'server-uuid-123'
+          ) {
+            return Promise.resolve([
+              {
+                tempId: 'temp_123',
+                serverId: 'server-uuid-123',
+                createdAt: Date.now(),
+              },
+            ])
+          }
+
+          return Promise.resolve([])
+        }
+      )
+
+      const syncQueue = getSyncQueue()
+      await syncQueue.removeNote('server-uuid-123')
+
+      expect(mockDB.delete).toHaveBeenCalledWith('syncQueue', 1)
+      expect(mockDB.delete).toHaveBeenCalledWith('syncQueue', 2)
+      expect(mockDB.delete).toHaveBeenCalledWith('notes', 'server-uuid-123')
+      expect(mockDB.delete).toHaveBeenCalledWith('notes', 'temp_123')
+      expect(mockDB.delete).toHaveBeenCalledWith('idMappings', 'temp_123')
+      expect(window.sessionStorage.getItem('refinery-current-session-temp-draft')).toBeNull()
     })
   })
 
@@ -541,7 +729,7 @@ describe('sync-queue', () => {
         timestamp: Date.now(),
         retryCount: 0,
       }
-      mockDB.getAll.mockResolvedValue([queueItem])
+      setQueueItems([queueItem])
 
       const syncQueue = getSyncQueue()
       await syncQueue.processQueue()
@@ -561,7 +749,7 @@ describe('sync-queue', () => {
         timestamp: Date.now(),
         retryCount: 0,
       }
-      mockDB.getAll.mockResolvedValue([queueItem])
+      setQueueItems([queueItem])
       mockSupabaseChain.single.mockResolvedValue({
         data: { id: 'server-id', updated_at: new Date().toISOString() },
         error: null,
@@ -588,7 +776,7 @@ describe('sync-queue', () => {
         timestamp: Date.now(),
         retryCount: 0,
       }
-      mockDB.getAll.mockResolvedValue([createItem])
+      setQueueItems([createItem])
 
       const syncQueue = getSyncQueue()
       await syncQueue.processQueue()
@@ -613,7 +801,7 @@ describe('sync-queue', () => {
         timestamp: Date.now() - 60000, // 1 minute old - within 5 min timeout
         retryCount: 0,
       }
-      mockDB.getAll.mockResolvedValue([recentItem])
+      setQueueItems([recentItem])
 
       const syncQueue = getSyncQueue()
       await syncQueue.processQueue()
@@ -641,7 +829,7 @@ describe('sync-queue', () => {
         timestamp: Date.now() - 6 * 60 * 1000, // 6 minutes old - exceeds 5 min timeout
         retryCount: 0,
       }
-      mockDB.getAll.mockResolvedValue([oldItem])
+      setQueueItems([oldItem])
 
       const syncQueue = getSyncQueue()
       await syncQueue.processQueue()

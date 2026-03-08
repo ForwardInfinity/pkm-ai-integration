@@ -18,6 +18,7 @@ let mockTargetNote: {
   content: string
   embedding_content_hash: string | null
   embedding_status: string
+  deleted_at?: string | null
 } | null = null
 
 let mockCandidates: Array<{ note_id: string; similarity: number }> = []
@@ -27,19 +28,22 @@ let mockCandidateDetails: Array<{
   problem: string | null
   content: string
   embedding_content_hash: string | null
+  deleted_at?: string | null
 }> = []
 let mockExistingJudgments: Array<{ pair_content_hash: string }> = []
 let mockInsertError: { code: string; message: string } | null = null
 let mockUpsertError: { code: string; message: string } | null = null
+let mockAfterJudgmentInsert: (() => void) | null = null
+let mockAfterConflictUpsert: (() => void) | null = null
 
 // Create mock Supabase client
 const createMockSupabaseClient = () => ({
   from: vi.fn((table: string) => {
     if (table === 'notes') {
-      return {
-        select: vi.fn(() => ({
-          eq: vi.fn((field: string, value: string) => ({
-            single: vi.fn(() => {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn((field: string, value: string) => ({
+              single: vi.fn(() => {
               mockSupabaseCallLog.push({
                 method: 'notes.select.eq.single',
                 args: [field, value],
@@ -50,22 +54,34 @@ const createMockSupabaseClient = () => ({
               return Promise.resolve({
                 data: null,
                 error: { message: 'Not found' },
-              })
-            }),
+                })
+              }),
+            })),
+            in: vi.fn((field: string, values: string[]) => ({
+              is: vi.fn((deletedAtField: string, deletedAtValue: null) => {
+                mockSupabaseCallLog.push({
+                  method: 'notes.select.in.is',
+                  args: [field, values, deletedAtField, deletedAtValue],
+                })
+
+                const notePool = [
+                  ...(mockTargetNote ? [mockTargetNote] : []),
+                  ...mockCandidateDetails,
+                ]
+
+                return Promise.resolve({
+                  data: notePool.filter(
+                    (note) =>
+                      values.includes(note.id) &&
+                      (note.deleted_at === undefined || note.deleted_at === null)
+                  ),
+                  error: null,
+                })
+              }),
+            })),
           })),
-          in: vi.fn((field: string, values: string[]) => {
-            mockSupabaseCallLog.push({
-              method: 'notes.select.in',
-              args: [field, values],
-            })
-            return Promise.resolve({
-              data: mockCandidateDetails.filter((c) => values.includes(c.id)),
-              error: null,
-            })
-          }),
-        })),
+        }
       }
-    }
 
     if (table === 'conflict_judgments') {
       return {
@@ -91,8 +107,22 @@ const createMockSupabaseClient = () => ({
           if (mockInsertError) {
             return Promise.resolve({ data: null, error: mockInsertError })
           }
+          mockAfterJudgmentInsert?.()
           return Promise.resolve({ data: { id: 'judgment-1' }, error: null })
         }),
+        delete: vi.fn(() => ({
+          eq: vi.fn((field: string, value: string) => ({
+            eq: vi.fn((secondField: string, secondValue: string) => ({
+              eq: vi.fn((thirdField: string, thirdValue: string) => {
+                mockSupabaseCallLog.push({
+                  method: 'conflict_judgments.delete',
+                  args: [field, value, secondField, secondValue, thirdField, thirdValue],
+                })
+                return Promise.resolve({ error: null })
+              }),
+            })),
+          })),
+        })),
       }
     }
 
@@ -106,8 +136,20 @@ const createMockSupabaseClient = () => ({
           if (mockUpsertError) {
             return Promise.resolve({ data: null, error: mockUpsertError })
           }
+          mockAfterConflictUpsert?.()
           return Promise.resolve({ data: { id: 'conflict-1' }, error: null })
         }),
+        delete: vi.fn(() => ({
+          eq: vi.fn((field: string, value: string) => ({
+            eq: vi.fn((secondField: string, secondValue: string) => {
+              mockSupabaseCallLog.push({
+                method: 'conflicts.delete',
+                args: [field, value, secondField, secondValue],
+              })
+              return Promise.resolve({ error: null })
+            }),
+          })),
+        })),
       }
     }
 
@@ -190,6 +232,8 @@ describe('detectNoteConflicts', () => {
     mockExistingJudgments = []
     mockInsertError = null
     mockUpsertError = null
+    mockAfterJudgmentInsert = null
+    mockAfterConflictUpsert = null
     mockJudgeNotePair.mockReset()
   })
 
@@ -374,6 +418,153 @@ describe('detectNoteConflicts', () => {
 
       expect(result.skipped).toBe(true)
       expect(result.reason).toContain('hash mismatch')
+    })
+  })
+
+  describe('trashed note handling', () => {
+    it('should skip trashed target notes', async () => {
+      mockTargetNote = {
+        id: 'note-trashed',
+        user_id: 'user-456',
+        title: 'Trashed note',
+        problem: null,
+        content: 'Content',
+        embedding_content_hash: 'test-hash',
+        embedding_status: 'completed',
+        deleted_at: '2026-03-08T00:00:00Z',
+      }
+
+      const { detectNoteConflicts } = await import(
+        '@/lib/inngest/functions/detect-conflicts'
+      )
+
+      const handler = detectNoteConflicts.handler as (ctx: {
+        event: { data: { noteId: string; contentHash: string } }
+        step: { run: typeof mockStepRun }
+      }) => Promise<{ skipped: boolean; reason: string; judged: number }>
+
+      const result = await handler({
+        event: { data: { noteId: 'note-trashed', contentHash: 'test-hash' } },
+        step: { run: mockStepRun },
+      })
+
+      expect(result.skipped).toBe(true)
+      expect(result.reason).toContain('trashed')
+      expect(result.judged).toBe(0)
+      expect(mockJudgeNotePair).not.toHaveBeenCalled()
+    })
+
+    it('should remove a judgment if the pair is trashed during LLM processing', async () => {
+      mockTargetNote = {
+        id: 'note-123',
+        user_id: 'user-456',
+        title: 'Target Note',
+        problem: null,
+        content: 'Target content',
+        embedding_content_hash: 'target-hash',
+        embedding_status: 'completed',
+      }
+      mockCandidates = [{ note_id: 'note-456', similarity: 0.9 }]
+      mockCandidateDetails = [
+        {
+          id: 'note-456',
+          title: 'Candidate Note',
+          problem: null,
+          content: 'Candidate content',
+          embedding_content_hash: 'candidate-hash',
+        },
+      ]
+      mockExistingJudgments = []
+      mockAfterJudgmentInsert = () => {
+        mockCandidateDetails[0] = {
+          ...mockCandidateDetails[0],
+          deleted_at: '2026-03-08T00:00:00Z',
+        }
+      }
+      mockJudgeNotePair.mockResolvedValueOnce({
+        reasoning: 'Conflict found',
+        result: 'tension',
+        confidence: 0.9,
+        explanation: 'Notes conflict',
+      })
+
+      const { detectNoteConflicts } = await import(
+        '@/lib/inngest/functions/detect-conflicts'
+      )
+
+      const handler = detectNoteConflicts.handler as (ctx: {
+        event: { data: { noteId: string; contentHash: string } }
+        step: { run: typeof mockStepRun }
+      }) => Promise<{ judged: number; conflicts: number }>
+
+      const result = await handler({
+        event: { data: { noteId: 'note-123', contentHash: 'target-hash' } },
+        step: { run: mockStepRun },
+      })
+
+      expect(
+        mockSupabaseCallLog.find((call) => call.method === 'conflict_judgments.delete')
+      ).toBeDefined()
+      expect(
+        mockSupabaseCallLog.find((call) => call.method === 'conflicts.upsert')
+      ).toBeUndefined()
+      expect(result.judged).toBe(0)
+      expect(result.conflicts).toBe(0)
+    })
+
+    it('should remove a conflict if the pair is trashed after conflict upsert', async () => {
+      mockTargetNote = {
+        id: 'note-123',
+        user_id: 'user-456',
+        title: 'Target Note',
+        problem: null,
+        content: 'Target content',
+        embedding_content_hash: 'target-hash',
+        embedding_status: 'completed',
+      }
+      mockCandidates = [{ note_id: 'note-456', similarity: 0.9 }]
+      mockCandidateDetails = [
+        {
+          id: 'note-456',
+          title: 'Candidate Note',
+          problem: null,
+          content: 'Candidate content',
+          embedding_content_hash: 'candidate-hash',
+        },
+      ]
+      mockExistingJudgments = []
+      mockAfterConflictUpsert = () => {
+        mockCandidateDetails[0] = {
+          ...mockCandidateDetails[0],
+          deleted_at: '2026-03-08T00:00:00Z',
+        }
+      }
+      mockJudgeNotePair.mockResolvedValueOnce({
+        reasoning: 'Conflict found',
+        result: 'tension',
+        confidence: 0.9,
+        explanation: 'Notes conflict',
+      })
+
+      const { detectNoteConflicts } = await import(
+        '@/lib/inngest/functions/detect-conflicts'
+      )
+
+      const handler = detectNoteConflicts.handler as (ctx: {
+        event: { data: { noteId: string; contentHash: string } }
+        step: { run: typeof mockStepRun }
+      }) => Promise<{ judged: number; conflicts: number }>
+
+      const result = await handler({
+        event: { data: { noteId: 'note-123', contentHash: 'target-hash' } },
+        step: { run: mockStepRun },
+      })
+
+      expect(
+        mockSupabaseCallLog.find((call) => call.method === 'conflicts.delete')
+      ).toBeDefined()
+      expect(result.judged).toBe(1)
+      expect(result.conflicts).toBe(0)
     })
   })
 

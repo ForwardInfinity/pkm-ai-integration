@@ -7,6 +7,8 @@ interface SyncNoteLinksResult {
   success: boolean
   linksCreated: number
   linksDeleted: number
+  skipped?: boolean
+  reason?: string
   error?: string
 }
 
@@ -27,6 +29,28 @@ export async function syncNoteLinks(
   }
 
   try {
+    const { data: sourceNote, error: sourceNoteError } = await supabase
+      .from('notes')
+      .select('id')
+      .eq('id', sourceNoteId)
+      .eq('user_id', user.id)
+      .is('deleted_at', null)
+      .maybeSingle()
+
+    if (sourceNoteError) {
+      return { success: false, linksCreated: 0, linksDeleted: 0, error: sourceNoteError.message }
+    }
+
+    if (!sourceNote) {
+      return {
+        success: true,
+        linksCreated: 0,
+        linksDeleted: 0,
+        skipped: true,
+        reason: 'Source note is trashed',
+      }
+    }
+
     // Extract unique link titles from content
     const linkTitles = extractUniqueLinkTitles(content)
 

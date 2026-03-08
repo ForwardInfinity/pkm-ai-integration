@@ -24,11 +24,23 @@ export async function triggerEmbeddingGeneration(note: {
     const expectedHash = hashNoteForEmbedding(note)
 
     // Optional optimization: check if already completed with same hash
-    const { data: existingNote } = await supabase
+    const { data: existingNote, error: existingNoteError } = await supabase
       .from('notes')
-      .select('embedding_content_hash, embedding_status')
+      .select('deleted_at, embedding_content_hash, embedding_status')
       .eq('id', note.id)
       .single()
+
+    if (existingNoteError) {
+      console.error('[Embedding] Failed to fetch note state:', existingNoteError.message)
+      return {
+        success: false,
+        error: `Failed to fetch note state: ${existingNoteError.message}`,
+      }
+    }
+
+    if (existingNote?.deleted_at) {
+      return { success: true, skipped: true, reason: 'Note is trashed' }
+    }
 
     if (
       existingNote?.embedding_status === 'completed' &&
@@ -38,7 +50,7 @@ export async function triggerEmbeddingGeneration(note: {
     }
 
     // Update note: set status to pending, store expected hash
-    const { error: updateError } = await supabase
+    const { data: queuedNote, error: updateError } = await supabase
       .from('notes')
       .update({
         embedding_status: 'pending',
@@ -47,10 +59,17 @@ export async function triggerEmbeddingGeneration(note: {
         embedding_error: null,
       })
       .eq('id', note.id)
+      .is('deleted_at', null)
+      .select('id')
+      .maybeSingle()
 
     if (updateError) {
       console.error('[Embedding] Failed to update note status:', updateError.message)
       return { success: false, error: `Failed to update note status: ${updateError.message}` }
+    }
+
+    if (!queuedNote) {
+      return { success: true, skipped: true, reason: 'Note is trashed' }
     }
 
     // Send event with noteId and expectedHash only (no content)

@@ -41,12 +41,21 @@ export const generateNoteEmbedding = inngest.createFunction(
     const noteData = await step.run('fetch-note-data', async () => {
       const { data: note, error } = await supabase
         .from('notes')
-        .select('id, user_id, title, problem, content, embedding_content_hash, embedding_status')
+        .select('id, user_id, title, problem, content, embedding_content_hash, embedding_status, deleted_at')
         .eq('id', noteId)
         .single()
 
       if (error || !note) {
         throw new NonRetriableError(`Note not found: ${noteId}`)
+      }
+
+      if (note.deleted_at) {
+        return {
+          skipped: true,
+          reason: 'Note is trashed',
+          note: null,
+          currentHash: null,
+        }
       }
 
       // Compute current hash from fetched data
@@ -56,8 +65,21 @@ export const generateNoteEmbedding = inngest.createFunction(
         content: note.content,
       })
 
-      return { note, currentHash }
+      return {
+        skipped: false,
+        reason: null,
+        note,
+        currentHash,
+      }
     })
+
+    if (noteData.skipped || !noteData.note || !noteData.currentHash) {
+      return {
+        skipped: true,
+        reason: noteData.reason,
+        noteId,
+      }
+    }
 
     const { note, currentHash } = noteData
 
@@ -79,8 +101,9 @@ export const generateNoteEmbedding = inngest.createFunction(
         .update({ embedding_status: 'processing' })
         .eq('id', noteId)
         .eq('embedding_content_hash', expectedHash) // Conditional on hash match
+        .is('deleted_at', null)
         .select('id')
-        .single()
+        .maybeSingle()
 
       if (error || !data) {
         // Another process may have updated the note
@@ -120,6 +143,7 @@ export const generateNoteEmbedding = inngest.createFunction(
           })
           .eq('id', noteId)
           .eq('embedding_content_hash', expectedHash)
+          .is('deleted_at', null)
           .select('id')
           .maybeSingle()
 
@@ -159,6 +183,7 @@ export const generateNoteEmbedding = inngest.createFunction(
           })
           .eq('id', noteId)
           .eq('embedding_content_hash', expectedHash)
+          .is('deleted_at', null)
 
         if (updateError) {
           console.error(`[Embedding] Failed to mark note ${noteId} as failed: ${updateError.message}`)
@@ -177,9 +202,13 @@ export const generateNoteEmbedding = inngest.createFunction(
       // Verify hash hasn't changed before modifying chunks
       const { data: currentNote } = await supabase
         .from('notes')
-        .select('embedding_content_hash')
+        .select('embedding_content_hash, deleted_at')
         .eq('id', noteId)
         .single()
+
+      if (currentNote?.deleted_at) {
+        return { stored: false, reason: 'Note trashed during processing' }
+      }
 
       if (currentNote?.embedding_content_hash !== expectedHash) {
         return { stored: false, reason: 'Hash changed during processing' }
@@ -239,6 +268,7 @@ export const generateNoteEmbedding = inngest.createFunction(
         })
         .eq('id', noteId)
         .eq('embedding_content_hash', expectedHash) // Only update if hash still matches
+        .is('deleted_at', null)
         .select('id')
         .maybeSingle()
 

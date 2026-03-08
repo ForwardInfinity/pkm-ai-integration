@@ -1,45 +1,20 @@
 'use client'
 
 import {
-  isServer,
-  QueryClient,
   QueryClientProvider,
 } from '@tanstack/react-query'
-
-function makeQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        // With SSR, we usually want to set some default staleTime
-        // above 0 to avoid refetching immediately on the client
-        staleTime: 60 * 1000,
-      },
-    },
-  })
-}
-
-let browserQueryClient: QueryClient | undefined = undefined
-
-function getQueryClient() {
-  if (isServer) {
-    // Server: always make a new query client
-    return makeQueryClient()
-  } else {
-    // Browser: make a new query client if we don't already have one
-    // This is very important, so we don't re-make a new client if React
-    // suspends during the initial render.
-    if (!browserQueryClient) browserQueryClient = makeQueryClient()
-    return browserQueryClient
-  }
-}
-
-// Export for use in sync-queue and other modules that need direct cache access
-export function getBrowserQueryClient(): QueryClient | undefined {
-  return browserQueryClient
-}
+import { useEffect } from 'react'
+import { getQueryClient } from '@/lib/query-client'
+import { resumeSyncQueueOnStartup } from '@/lib/local-db/sync-queue'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const queryClient = getQueryClient()
+
+  useEffect(() => {
+    void resumeSyncQueueOnStartup().catch(() => {
+      // Queue resume is best-effort on startup.
+    })
+  }, [])
 
   return (
     <QueryClientProvider client={queryClient}>

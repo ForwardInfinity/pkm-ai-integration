@@ -40,10 +40,19 @@ vi.mock('@/lib/supabase/client', () => ({
 }))
 
 // Mock getBrowserQueryClient
-vi.mock('@/app/providers', () => ({
+vi.mock('@/lib/query-client', () => ({
   getBrowserQueryClient: vi.fn(() => ({
     setQueryData: vi.fn(),
+    invalidateQueries: vi.fn(),
   })),
+}))
+
+vi.mock('@/features/notes/actions/trigger-embedding', () => ({
+  triggerEmbeddingGeneration: vi.fn().mockResolvedValue({ success: true }),
+}))
+
+vi.mock('@/features/notes/actions/sync-note-links', () => ({
+  syncNoteLinks: vi.fn().mockResolvedValue({ success: true }),
 }))
 
 // Mock note-cache
@@ -288,6 +297,18 @@ describe('sync-queue', () => {
     })
   })
 
+  describe('startup resume', () => {
+    it('should resume queue processing on app startup', async () => {
+      const { resumeSyncQueueOnStartup } = await import('@/lib/local-db/sync-queue')
+      const syncQueue = getSyncQueue()
+      const processSpy = vi.spyOn(syncQueue, 'processQueue').mockResolvedValue(undefined)
+
+      await resumeSyncQueueOnStartup()
+
+      expect(processSpy).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('tab sync via BroadcastChannel', () => {
     it('should notify listeners on enqueue', async () => {
       const syncQueue = getSyncQueue()
@@ -457,6 +478,31 @@ describe('sync-queue', () => {
         retryCount: 0,
         lastError: undefined,
       }))
+    })
+
+    it('should re-enqueue recovered notes with their persisted tags', async () => {
+      const { requeueRecoveredNote } = await import('@/lib/local-db/sync-queue')
+      const syncQueue = getSyncQueue()
+      const enqueueSpy = vi.spyOn(syncQueue, 'enqueue').mockResolvedValue(undefined)
+
+      await requeueRecoveredNote({
+        id: 'note-123',
+        title: 'Recovered',
+        problem: null,
+        content: 'Recovered #tag',
+        wordCount: 2,
+        tags: ['tag'],
+        updatedAt: Date.now(),
+        syncStatus: 'error',
+      })
+
+      expect(enqueueSpy).toHaveBeenCalledWith('note-123', {
+        title: 'Recovered',
+        problem: null,
+        content: 'Recovered #tag',
+        wordCount: 2,
+        tags: ['tag'],
+      })
     })
   })
 

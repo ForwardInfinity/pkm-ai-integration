@@ -1,5 +1,7 @@
 import { getDB, LocalNote, SyncStatus } from './index'
 
+const CURRENT_SESSION_TEMP_DRAFT_KEY = 'refinery-current-session-temp-draft'
+
 export async function saveNoteLocally(note: LocalNote): Promise<void> {
   const db = await getDB()
   await db.put('notes', note)
@@ -102,4 +104,19 @@ export async function getAllIdMappings(): Promise<Map<string, string>> {
   const db = await getDB()
   const mappings = await db.getAll('idMappings')
   return new Map(mappings.map((m) => [m.tempId, m.serverId]))
+}
+
+export function getCurrentSessionTempDraftId(): string | null {
+  if (typeof window === 'undefined') return null
+  return window.sessionStorage.getItem(CURRENT_SESSION_TEMP_DRAFT_KEY)
+}
+
+export function setCurrentSessionTempDraftId(tempId: string): void {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.setItem(CURRENT_SESSION_TEMP_DRAFT_KEY, tempId)
+}
+
+export function clearCurrentSessionTempDraftId(): void {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.removeItem(CURRENT_SESSION_TEMP_DRAFT_KEY)
 }

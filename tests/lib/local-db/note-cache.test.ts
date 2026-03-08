@@ -41,6 +41,9 @@ import {
   saveIdMapping,
   getIdMapping,
   getAllIdMappings,
+  getCurrentSessionTempDraftId,
+  setCurrentSessionTempDraftId,
+  clearCurrentSessionTempDraftId,
 } from '@/lib/local-db/note-cache'
 
 describe('note-cache', () => {
@@ -50,6 +53,7 @@ describe('note-cache', () => {
     problem: 'Test problem',
     content: 'Test content',
     wordCount: 10,
+    tags: ['test-tag'],
     updatedAt: Date.now(),
     syncStatus: 'pending',
   }
@@ -75,6 +79,15 @@ describe('note-cache', () => {
 
       expect(mockDB.put).toHaveBeenCalledWith('notes', mockNote)
     })
+
+    it('should persist tags on the local note payload', async () => {
+      await saveNoteLocally(mockNote)
+
+      expect(mockDB.put).toHaveBeenCalledWith('notes', expect.objectContaining({
+        id: 'note-123',
+        tags: ['test-tag'],
+      }))
+    })
   })
 
   describe('getNoteLocally', () => {
@@ -93,6 +106,14 @@ describe('note-cache', () => {
       const result = await getNoteLocally('non-existent')
 
       expect(result).toBeUndefined()
+    })
+
+    it('should recover tags from IndexedDB drafts', async () => {
+      mockDB.get.mockResolvedValue(mockNote)
+
+      const result = await getNoteLocally('note-123')
+
+      expect(result?.tags).toEqual(['test-tag'])
     })
   })
 
@@ -281,6 +302,22 @@ describe('note-cache', () => {
         expect(result).toBeInstanceOf(Map)
         expect(result.size).toBe(0)
       })
+    })
+  })
+
+  describe('session temp draft registry', () => {
+    it('should persist the current session temp draft ID', () => {
+      setCurrentSessionTempDraftId('temp_session_123')
+
+      expect(getCurrentSessionTempDraftId()).toBe('temp_session_123')
+    })
+
+    it('should clear the current session temp draft ID', () => {
+      setCurrentSessionTempDraftId('temp_session_123')
+
+      clearCurrentSessionTempDraftId()
+
+      expect(getCurrentSessionTempDraftId()).toBeNull()
     })
   })
 })

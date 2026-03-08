@@ -9,13 +9,14 @@ import {
   getIdMapping,
   getAllIdMappings,
 } from './note-cache'
-import { getBrowserQueryClient } from '@/app/providers'
+import { getBrowserQueryClient } from '@/lib/query-client'
 import { noteKeys } from '@/features/notes/hooks/use-notes'
 import { backlinkKeys } from '@/features/notes/hooks/use-backlinks'
 import { tagKeys } from '@/features/notes/hooks/use-tags'
 import type { NoteListItem, Note } from '@/features/notes/types'
 import { triggerEmbeddingGeneration } from '@/features/notes/actions/trigger-embedding'
 import { syncNoteLinks } from '@/features/notes/actions/sync-note-links'
+import { extractTagsFromMarkdown } from '@/lib/tags'
 
 const SYNC_DEBOUNCE_MS = 2000
 const MAX_RETRIES = 3
@@ -530,6 +531,16 @@ class SyncQueue {
 // Singleton instance
 let syncQueueInstance: SyncQueue | null = null
 
+function buildRecoveredNotePayload(note: LocalNote): Partial<LocalNote> {
+  return {
+    title: note.title,
+    problem: note.problem,
+    content: note.content,
+    wordCount: note.wordCount,
+    tags: note.tags ?? extractTagsFromMarkdown(note.content),
+  }
+}
+
 export function getSyncQueue(): SyncQueue {
   if (typeof window === 'undefined') {
     throw new Error('SyncQueue is only available in the browser')
@@ -538,6 +549,16 @@ export function getSyncQueue(): SyncQueue {
     syncQueueInstance = new SyncQueue()
   }
   return syncQueueInstance
+}
+
+export async function requeueRecoveredNote(note: LocalNote): Promise<void> {
+  const syncQueue = getSyncQueue()
+  await syncQueue.enqueue(note.id, buildRecoveredNotePayload(note))
+}
+
+export async function resumeSyncQueueOnStartup(): Promise<void> {
+  const syncQueue = getSyncQueue()
+  await syncQueue.flushSync()
 }
 
 export type { NoteChangeListener }

@@ -1,17 +1,25 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { useNoteEditorStore, useTabsStore } from '@/stores'
+import type { LocalNote } from '@/lib/local-db'
 
 const mockUseNote = vi.fn()
 const mockUseNotes = vi.fn()
 const mockUseAllTags = vi.fn()
+const mockUseAutoSave = vi.fn()
 const mockSave = vi.fn()
 const mockGetServerId = vi.fn()
+const mockGetNoteLocally = vi.fn()
+const mockRequeueRecoveredNote = vi.fn()
 
 vi.mock('@/components/editor', () => ({
   MarkdownEditor: ({ content }: { content: string }) => (
     <div data-testid="markdown-editor">{content}</div>
   ),
+}))
+
+vi.mock('@/features/notes/components/note-actions-dropdown', () => ({
+  NoteActionsDropdown: () => null,
 }))
 
 vi.mock('@/features/notes/hooks', () => ({
@@ -24,14 +32,31 @@ vi.mock('@/features/notes/hooks/use-tags', () => ({
 }))
 
 vi.mock('@/features/notes/hooks/use-auto-save', () => ({
-  useAutoSave: () => ({
-    save: mockSave,
-    getServerId: mockGetServerId,
-  }),
+  useAutoSave: (...args: unknown[]) => {
+    mockUseAutoSave(...args)
+    return {
+      save: mockSave,
+      getServerId: mockGetServerId,
+    }
+  },
 }))
 
 vi.mock('@/hooks/use-beforeunload-save', () => ({
   useBeforeunloadSave: () => undefined,
+}))
+
+vi.mock('@/lib/local-db/note-cache', () => ({
+  getNoteLocally: (...args: unknown[]) => mockGetNoteLocally(...args),
+  getCurrentSessionTempDraftId: () =>
+    window.sessionStorage.getItem('refinery-current-session-temp-draft'),
+  setCurrentSessionTempDraftId: (tempId: string) =>
+    window.sessionStorage.setItem('refinery-current-session-temp-draft', tempId),
+  clearCurrentSessionTempDraftId: () =>
+    window.sessionStorage.removeItem('refinery-current-session-temp-draft'),
+}))
+
+vi.mock('@/lib/local-db/sync-queue', () => ({
+  requeueRecoveredNote: (...args: unknown[]) => mockRequeueRecoveredNote(...args),
 }))
 
 vi.mock('@/features/ai', () => ({
@@ -75,12 +100,15 @@ describe('NoteEditor', () => {
     })
     mockUseNotes.mockReturnValue({ data: [] })
     mockUseAllTags.mockReturnValue({ data: [] })
+    mockUseAutoSave.mockReset()
     mockSave.mockReset()
     mockGetServerId.mockReset()
     mockGetServerId.mockReturnValue(undefined)
+    mockGetNoteLocally.mockResolvedValue(undefined)
+    mockRequeueRecoveredNote.mockResolvedValue(undefined)
   })
 
-  it('clears the previous persisted draft when switching to /notes/new', () => {
+  it('clears the previous persisted draft when switching to /notes/new', async () => {
     useNoteEditorStore.getState().hydrateFromServer(
       {
         id: 'server-note-id',
@@ -114,17 +142,125 @@ describe('NoteEditor', () => {
 
     render(<NoteEditor noteId="new" tabId="tab-new" />)
 
+    await waitFor(() => {
+      expect(useNoteEditorStore.getState().currentDraft).toMatchObject({
+        id: 'temp_test-id-1',
+        persistedId: null,
+        isUnsaved: true,
+        source: 'local-draft',
+        title: '',
+        problem: '',
+        content: '',
+        tags: [],
+        wordCount: 0,
+        isPinned: undefined,
+      })
+    })
+  })
+
+  it('recovers error drafts for existing notes without losing tags', async () => {
+    const recoveredDraft: LocalNote = {
+      id: 'note-123',
+      title: 'Recovered title',
+      problem: 'Recovered problem',
+      content: 'Recovered content #tag',
+      wordCount: 3,
+      tags: ['tag'],
+      updatedAt: Date.now(),
+      syncStatus: 'error',
+    }
+
+    mockUseNote.mockReturnValue({
+      data: {
+        id: 'note-123',
+        user_id: 'user-1',
+        title: 'Server title',
+        problem: 'Server problem',
+        content: 'Server content',
+        tags: [],
+        is_pinned: false,
+        word_count: 2,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+        deleted_at: null,
+        embedding: null,
+        embedding_content_hash: null,
+        embedding_error: null,
+        embedding_model: null,
+        embedding_requested_at: null,
+        embedding_status: 'pending',
+        embedding_updated_at: null,
+        fts: null,
+      },
+      isLoading: false,
+      error: null,
+    })
+    mockGetNoteLocally.mockResolvedValue(recoveredDraft)
+
+    useTabsStore.setState({
+      tabs: [{ id: 'tab-1', noteId: 'note-123', title: 'Recovered title' }],
+      activeTabId: 'tab-1',
+      showListView: false,
+    })
+
+    render(<NoteEditor noteId="note-123" tabId="tab-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Recovered title')).toBeInTheDocument()
+    })
+
+    expect(screen.getByTestId('markdown-editor')).toHaveTextContent('Recovered content #tag')
+    expect(mockRequeueRecoveredNote).toHaveBeenCalledWith(recoveredDraft)
     expect(useNoteEditorStore.getState().currentDraft).toMatchObject({
-      id: 'temp_test-id-1',
-      persistedId: null,
-      isUnsaved: true,
-      source: 'local-draft',
-      title: '',
+      id: 'note-123',
+      title: 'Recovered title',
+      tags: ['tag'],
+    })
+  })
+
+  it('reconnects the latest unsynced temp draft on /notes/new', async () => {
+    const recoveredDraft: LocalNote = {
+      id: 'temp_session_1',
+      tempId: 'temp_session_1',
+      title: 'Recovered temp draft',
       problem: '',
-      content: '',
-      tags: [],
-      wordCount: 0,
-      isPinned: undefined,
+      content: 'Unsynced draft #tag',
+      wordCount: 3,
+      tags: ['tag'],
+      updatedAt: Date.now(),
+      syncStatus: 'pending',
+    }
+
+    window.sessionStorage.setItem(
+      'refinery-current-session-temp-draft',
+      'temp_session_1'
+    )
+    mockGetNoteLocally.mockImplementation(async (id: string) =>
+      id === 'temp_session_1' ? recoveredDraft : undefined
+    )
+
+    useTabsStore.setState({
+      tabs: [{ id: 'tab-new', noteId: 'new', title: 'New Note' }],
+      activeTabId: 'tab-new',
+      showListView: false,
+    })
+
+    render(<NoteEditor noteId="new" tabId="tab-new" />)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Recovered temp draft')).toBeInTheDocument()
+    })
+
+    expect(screen.getByTestId('markdown-editor')).toHaveTextContent('Unsynced draft #tag')
+    expect(mockRequeueRecoveredNote).toHaveBeenCalledWith(recoveredDraft)
+    expect(mockUseAutoSave).toHaveBeenCalledWith(expect.objectContaining({
+      noteId: 'temp_session_1',
+      onExternalChange: expect.any(Function),
+    }))
+    expect(useNoteEditorStore.getState().currentDraft).toMatchObject({
+      id: 'temp_session_1',
+      title: 'Recovered temp draft',
+      tags: ['tag'],
     })
   })
 })

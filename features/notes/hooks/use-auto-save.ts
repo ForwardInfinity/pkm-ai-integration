@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { saveNoteLocally, getNoteLocally } from '@/lib/local-db/note-cache'
 import { getSyncQueue, NoteChangeListener } from '@/lib/local-db/sync-queue'
 import { LocalNote } from '@/lib/local-db'
-import { getBrowserQueryClient } from '@/app/providers'
+import { getBrowserQueryClient } from '@/lib/query-client'
 import { noteKeys } from './use-notes'
 import type { NoteListItem } from '../types'
 
@@ -55,7 +55,7 @@ export function useAutoSave({ noteId, onExternalChange }: UseAutoSaveOptions) {
         problem: data.problem !== undefined ? data.problem : (existing?.problem ?? null),
         content: data.content ?? existing?.content ?? '',
         wordCount: data.wordCount ?? existing?.wordCount ?? 0,
-        tags: data.tags ?? existing?.tags,
+        tags: data.tags ?? existing?.tags ?? [],
         updatedAt: Date.now(),
         syncStatus: 'pending',
         tempId: noteId.startsWith('temp_') ? noteId : undefined,

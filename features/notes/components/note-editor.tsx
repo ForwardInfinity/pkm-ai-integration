@@ -8,8 +8,13 @@ import { useAllTags } from '../hooks/use-tags'
 import { useAutoSave } from '../hooks/use-auto-save'
 import { useBeforeunloadSave } from '@/hooks/use-beforeunload-save'
 import { useNoteEditorActions, useTabsActions, useActiveTabId } from '@/stores'
-import { getNoteLocally } from '@/lib/local-db/note-cache'
-import { getSyncQueue } from '@/lib/local-db/sync-queue'
+import {
+  clearCurrentSessionTempDraftId,
+  getCurrentSessionTempDraftId,
+  getNoteLocally,
+  setCurrentSessionTempDraftId,
+} from '@/lib/local-db/note-cache'
+import { requeueRecoveredNote } from '@/lib/local-db/sync-queue'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Loader2, AlertCircle, Sparkles, Check, X, RefreshCw } from 'lucide-react'
@@ -28,19 +33,32 @@ interface NoteEditorProps {
   tabId: string
 }
 
+function isRecoverableLocalDraft(
+  localNote: LocalNote | undefined
+): localNote is LocalNote {
+  return !!localNote &&
+    (localNote.syncStatus === 'pending' || localNote.syncStatus === 'error')
+}
+
 export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   const isNewNote = noteId === 'new'
   const isUnsavedNote = isUnsavedNoteId(noteId)
-  const isTempNote = noteId.startsWith('temp_')
   const hasUpdatedUrl = useRef(false)
 
-  // Generate stable local ID for new notes
-  const localNoteId = useMemo(() => {
-    if (isNewNote) {
-      return `temp_${nanoid()}`
-    }
-    return noteId
+  const sessionTempDraftId = useMemo(() => {
+    if (!isNewNote) return null
+    return getCurrentSessionTempDraftId()
+  }, [isNewNote])
+
+  const generatedTempNoteId = useMemo(() => {
+    if (!isNewNote) return noteId
+    return `temp_${nanoid()}`
   }, [noteId, isNewNote])
+
+  const [resolvedTempNoteId, setResolvedTempNoteId] = useState<string | null>(null)
+  const localNoteId = isNewNote
+    ? resolvedTempNoteId ?? sessionTempDraftId ?? generatedTempNoteId
+    : noteId
 
   // Data fetching
   const { data: note, isLoading, error } = useNote(noteId)
@@ -121,20 +139,32 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   const [title, setTitle] = useState('')
   const [problem, setProblem] = useState('')
   const [content, setContent] = useState('')
-  const [isRecovering, setIsRecovering] = useState(!isNewNote)
+  const [isRecovering, setIsRecovering] = useState(true)
 
   // Draft bookkeeping for the shared inspector state
   const latestDraftRef = useRef({ title: '', problem: '', content: '' })
-  const hasRecoveredLocalDraftRef = useRef(isUnsavedNote)
+  const hasRecoveredLocalDraftRef = useRef(false)
 
   // Calculate word count from content
   const calculateWordCount = useCallback((text: string) => {
     return text.trim().split(/\s+/).filter(Boolean).length
   }, [])
 
+  const recoverLocalDraft = useCallback(async (localNote: LocalNote) => {
+    hasRecoveredLocalDraftRef.current = true
+    setTitle(localNote.title)
+    setProblem(localNote.problem ?? '')
+    setContent(localNote.content)
+    await requeueRecoveredNote(localNote)
+  }, [])
+
   useEffect(() => {
     latestDraftRef.current = { title, problem, content }
   }, [title, problem, content])
+
+  useEffect(() => {
+    setResolvedTempNoteId(null)
+  }, [noteId])
 
   // AI problem reconstruction
   const {
@@ -280,47 +310,95 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   // Beforeunload handler for safety
   useBeforeunloadSave()
 
-  // Check for pending local changes on mount (recovery)
+  // Recover the active temp draft for /notes/new within the current browser session.
   useEffect(() => {
+    if (!isNewNote) return
+
+    let isCancelled = false
+
+    async function resolveNewNoteDraft() {
+      try {
+        const localNote = sessionTempDraftId
+          ? await getNoteLocally(sessionTempDraftId)
+          : undefined
+
+        if (isCancelled) return
+
+        if (isRecoverableLocalDraft(localNote)) {
+          setResolvedTempNoteId(localNote.id)
+          setCurrentSessionTempDraftId(localNote.id)
+          await recoverLocalDraft(localNote)
+        } else {
+          const freshTempNoteId = generatedTempNoteId
+          if (sessionTempDraftId) {
+            clearCurrentSessionTempDraftId()
+          }
+
+          setResolvedTempNoteId(freshTempNoteId)
+          setCurrentSessionTempDraftId(freshTempNoteId)
+          hasRecoveredLocalDraftRef.current = false
+          setTitle('')
+          setProblem('')
+          setContent('')
+        }
+      } catch {
+        if (isCancelled) return
+
+        setResolvedTempNoteId(generatedTempNoteId)
+        setCurrentSessionTempDraftId(generatedTempNoteId)
+        hasRecoveredLocalDraftRef.current = false
+        setTitle('')
+        setProblem('')
+        setContent('')
+      } finally {
+        if (!isCancelled) {
+          setIsRecovering(false)
+        }
+      }
+    }
+
+    setIsRecovering(true)
+    void resolveNewNoteDraft()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [generatedTempNoteId, isNewNote, recoverLocalDraft, sessionTempDraftId])
+
+  // Recover local drafts for persisted notes and temp note tabs.
+  useEffect(() => {
+    if (isNewNote) return
+
+    let isCancelled = false
+
     async function checkLocalChanges() {
       try {
         const localNote = await getNoteLocally(localNoteId)
-        const shouldHydrateLocalDraft =
-          !!localNote && (isTempNote || localNote.syncStatus === 'pending')
+        if (isCancelled) return
 
-        if (shouldHydrateLocalDraft && localNote) {
-          hasRecoveredLocalDraftRef.current = true
-          setTitle(localNote.title)
-          setProblem(localNote.problem ?? '')
-          setContent(localNote.content)
-
-          if (localNote.syncStatus === 'pending') {
-            const syncQueue = getSyncQueue()
-            syncQueue.enqueue(localNoteId, {
-              title: localNote.title,
-              problem: localNote.problem,
-              content: localNote.content,
-              wordCount: localNote.wordCount,
-              tags: localNote.tags ?? extractTagsFromMarkdown(localNote.content),
-            })
-          }
+        if (isRecoverableLocalDraft(localNote)) {
+          await recoverLocalDraft(localNote)
         } else {
           hasRecoveredLocalDraftRef.current = false
         }
       } catch {
-        hasRecoveredLocalDraftRef.current = false
+        if (!isCancelled) {
+          hasRecoveredLocalDraftRef.current = false
+        }
       } finally {
-        setIsRecovering(false)
+        if (!isCancelled) {
+          setIsRecovering(false)
+        }
       }
     }
 
-    if (isNewNote) {
-      hasRecoveredLocalDraftRef.current = true
-      setIsRecovering(false)
-    } else {
-      checkLocalChanges()
+    setIsRecovering(true)
+    void checkLocalChanges()
+
+    return () => {
+      isCancelled = true
     }
-  }, [isNewNote, isTempNote, localNoteId])
+  }, [isNewNote, localNoteId, recoverLocalDraft])
 
   // Initialize form from the server when no fresher local draft exists
   useEffect(() => {
@@ -330,10 +408,10 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
       void getNoteLocally(noteId).then((localNote) => {
         if (isCancelled) return
 
-        const hasPendingLocalDraft = !!localNote && localNote.syncStatus === 'pending'
-        hasRecoveredLocalDraftRef.current = hasPendingLocalDraft
+        const hasRecoverableLocalDraft = isRecoverableLocalDraft(localNote)
+        hasRecoveredLocalDraftRef.current = hasRecoverableLocalDraft
 
-        if (!hasPendingLocalDraft) {
+        if (!hasRecoverableLocalDraft) {
           setTitle(note.title ?? '')
           setProblem(note.problem ?? '')
           setContent(note.content ?? '')
@@ -392,6 +470,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
         const serverId = getServerId(localNoteId)
         if (serverId && !hasUpdatedUrl.current) {
           hasUpdatedUrl.current = true
+          clearCurrentSessionTempDraftId()
 
           if (isActiveTab) {
             setCurrentDraftId({
@@ -560,7 +639,7 @@ export function NoteEditor({ noteId, tabId }: NoteEditorProps) {
   }
 
   // Loading state
-  if ((!isUnsavedNote && isLoading) || (!isNewNote && isRecovering)) {
+  if (isRecovering || (!isUnsavedNote && isLoading)) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

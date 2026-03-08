@@ -27,7 +27,6 @@
     "@supabase/supabase-js": "2.86.1",
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/react-query": "^5.90.12",
-    "@tiptap-pro/extension-comments": "^3.3.0",
     "@tiptap/extension-code-block-lowlight": "^3.12.1",
     "@tiptap/extension-highlight": "^3.12.1",
     "@tiptap/extension-link": "^3.12.1",

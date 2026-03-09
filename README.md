@@ -81,10 +81,6 @@ Key RPCs:
 
 Triggers handle `updated_at` timestamps, auto-profile creation on signup, and conflict cleanup on soft delete/restore.
 
-## How it was built
-
-This project was built using AI-assisted development (Pi, Claude Code). I provided the vision, problem definitions, architecture decisions, and product direction. AI handled implementation. This is how I build: problems and taste first, AI as execution layer.
-
 ## Running locally
 
 ```bash

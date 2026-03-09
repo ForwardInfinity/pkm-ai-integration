@@ -38,7 +38,7 @@ create table notes (
   title text not null,
   problem text,
   content text not null default '',
-  embedding vector(1536),
+  embedding extensions.vector(1536),
   tags text[] not null default '{}',
   word_count integer not null default 0,
   is_pinned boolean not null default false,
@@ -79,7 +79,7 @@ create table note_chunks (
   content_start int not null,
   content_end int not null,
   text_chunk text not null,
-  embedding vector(1536) not null,
+  embedding extensions.vector(1536) not null,
   created_at timestamptz not null default now(),
   constraint note_chunks_unique_index unique (note_id, chunk_index),
   constraint note_chunks_valid_offsets check (content_start >= 0 and content_end > content_start)
@@ -136,7 +136,7 @@ create index notes_user_active_idx on notes(user_id, updated_at desc) where dele
 create index notes_user_pinned_idx on notes(user_id, is_pinned) where is_pinned = true and deleted_at is null;
 create index notes_deleted_at_idx on notes(deleted_at) where deleted_at is not null;
 create index notes_tags_idx on notes using gin(tags);
-create index notes_embedding_idx on notes using hnsw (embedding vector_cosine_ops) with (m = 16, ef_construction = 64);
+create index notes_embedding_idx on notes using hnsw (embedding extensions.vector_cosine_ops) with (m = 16, ef_construction = 64);
 create index notes_embedding_status_idx on notes(user_id, embedding_status);
 create index notes_embedding_requested_at_idx on notes(embedding_requested_at) where embedding_status in ('pending', 'failed');
 
@@ -148,7 +148,7 @@ alter table notes add column if not exists fts tsvector
 create index notes_fts_idx on notes using gin(fts);
 
 -- Note chunks indexes
-create index note_chunks_embedding_idx on note_chunks using hnsw (embedding vector_cosine_ops) with (m = 16, ef_construction = 64);
+create index note_chunks_embedding_idx on note_chunks using hnsw (embedding extensions.vector_cosine_ops) with (m = 16, ef_construction = 64);
 create index note_chunks_note_id_idx on note_chunks(note_id);
 create index note_chunks_user_id_idx on note_chunks(user_id);
 

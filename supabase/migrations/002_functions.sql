@@ -96,7 +96,7 @@ create trigger on_note_restore
 
 create or replace function hybrid_search(
   query_text text,
-  query_embedding vector(1536),
+  query_embedding extensions.vector(1536),
   match_count int default 10,
   full_text_weight float default 1.0,
   semantic_weight float default 1.0,
